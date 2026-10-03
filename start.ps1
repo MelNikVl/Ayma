@@ -1,4 +1,4 @@
-# Локальный запуск AYMA на Windows через Docker Desktop.
+﻿# Локальный запуск AYMA на Windows через Docker Desktop.
 # Запуск: powershell -ExecutionPolicy Bypass -File .\start.ps1
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
