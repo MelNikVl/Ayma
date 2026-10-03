@@ -1,6 +1,8 @@
 ﻿# Локальный запуск AYMA на Windows через Docker Desktop.
 # Запуск: powershell -ExecutionPolicy Bypass -File .\start.ps1
-$ErrorActionPreference = "Stop"
+# Continue: docker пишет предупреждения и прогресс в stderr, PowerShell 5 при "Stop" считает это ошибкой.
+# Успех проверяем по $LASTEXITCODE.
+$ErrorActionPreference = "Continue"
 Set-Location $PSScriptRoot
 
 Write-Host "== AYMA: локальный запуск ==" -ForegroundColor Cyan
@@ -11,14 +13,14 @@ if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
 }
 
 # Ждём, пока поднимется Docker Engine (стартуем Docker Desktop при необходимости)
-docker info *> $null
+docker info 2>&1 | Out-Null
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Запускаю Docker Desktop..."
     $dd = "$Env:ProgramFiles\Docker\Docker\Docker Desktop.exe"
     if (Test-Path $dd) { Start-Process $dd }
     for ($i = 0; $i -lt 60; $i++) {
         Start-Sleep -Seconds 3
-        docker info *> $null
+        docker info 2>&1 | Out-Null
         if ($LASTEXITCODE -eq 0) { break }
     }
     if ($LASTEXITCODE -ne 0) { Write-Host "Docker Engine не запустился за 3 минуты." -ForegroundColor Red; exit 1 }
@@ -38,7 +40,7 @@ if (-not (Test-Path ".env")) {
 }
 
 Write-Host "Сборка и запуск контейнеров (первый раз 3-7 минут)..."
-docker compose up -d --build
+docker compose up -d --build 2>&1 | ForEach-Object { "$_" }
 if ($LASTEXITCODE -ne 0) { Write-Host "docker compose завершился с ошибкой" -ForegroundColor Red; exit 1 }
 
 $port = if ($Env:APP_PORT) { $Env:APP_PORT } else { "3000" }
