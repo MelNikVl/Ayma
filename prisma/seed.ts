@@ -1,5 +1,5 @@
 /**
- * Сид: базовые теги + демо-данные (отключаются SEED_DEMO=false).
+ * Сид: базовые теги; демо-данные — только при SEED_DEMO=true.
  * Идемпотентен — можно запускать повторно.
  */
 import { PrismaClient } from "@prisma/client";
@@ -148,7 +148,8 @@ async function main() {
   }
   console.log(`✓ Теги: ${TAGS.length}`);
 
-  if (process.env.SEED_DEMO === "false") return;
+  // Демо-карточки — только по явному SEED_DEMO=true (для локальной разработки)
+  if (process.env.SEED_DEMO !== "true") return;
 
   const founder = await prisma.user.upsert({
     where: { telegramId: BigInt(1) },

@@ -30,7 +30,7 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-Откройте http://localhost:3000. Сервис `migrate` применит миграции и зальёт теги + демо-стартапы (отключить: `SEED_DEMO=false`).
+Откройте http://localhost:3000. Сервис `migrate` применит миграции и базовые теги. Наполнить каталог реальными проектами (финал HackAlem.ai + Hatuli): `docker compose run --rm migrate npx tsx prisma/import-catalog.ts`. Демо-карточки для разработки — `SEED_DEMO=true`.
 
 ## Запуск на Windows одной командой
 
@@ -78,7 +78,7 @@ Telegram-виджет не работает на `localhost`, поэтому д�
 | `AUTO_APPROVE` | нет | `true` — публикация без модерации |
 | `ENABLE_DEV_LOGIN` | нет | `true` — вход без Telegram (только dev) |
 | `CRON_SECRET` | нет | Защищает `/api/cron/github` |
-| `SEED_DEMO` | нет | `false` — сид только с тегами |
+| `SEED_DEMO` | нет | `true` — добавить демо-карточки (по умолчанию выключено) |
 
 ## CI/CD
 

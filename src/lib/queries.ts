@@ -60,6 +60,15 @@ export async function listTags() {
   return prisma.tag.findMany({ orderBy: { name: "asc" } });
 }
 
+/** Теги для фильтра каталога: только те, у которых есть опубликованные стартапы, популярные первыми. */
+export async function listCatalogTags() {
+  const tags = await prisma.tag.findMany({
+    where: { startups: { some: { status: "APPROVED" } } },
+    include: { _count: { select: { startups: { where: { status: "APPROVED" } } } } },
+  });
+  return tags.sort((a, b) => b._count.startups - a._count.startups || a.name.localeCompare(b.name));
+}
+
 /** Сумма оплаченных предзаказов и уникальные спонсоры. */
 export async function getFundingStats(startupId: string) {
   const [agg, paid] = await Promise.all([

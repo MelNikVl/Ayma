@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { listStartups, listTags, type SortKey } from "@/lib/queries";
+import { listStartups, listCatalogTags, type SortKey } from "@/lib/queries";
 import { StartupCard } from "@/components/StartupCard";
 import { TagFilter } from "@/components/TagFilter";
 import { SortTabs } from "@/components/SortTabs";
@@ -22,7 +22,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
   const sort: SortKey = sortRaw === "new" || sortRaw === "stars" ? sortRaw : "popular";
   const page = Number(one(searchParams.page)) || 1;
 
-  const [tags, result] = await Promise.all([listTags(), listStartups({ q, tag, sort, page })]);
+  const [tags, result] = await Promise.all([listCatalogTags(), listStartups({ q, tag, sort, page })]);
 
   return (
     <div className="mx-auto max-w-7xl px-4 pb-8 pt-4 sm:px-6">

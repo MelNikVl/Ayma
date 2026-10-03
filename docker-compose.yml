@@ -25,7 +25,7 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgresql://aimarket:${POSTGRES_PASSWORD:-aimarket}@db:5432/aimarket?schema=public
-      SEED_DEMO: ${SEED_DEMO:-true}
+      SEED_DEMO: ${SEED_DEMO:-false}
     command: sh -c "npx prisma migrate deploy && npx prisma db seed"
     depends_on:
       db:
