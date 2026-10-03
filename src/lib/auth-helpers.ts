@@ -28,7 +28,7 @@ export async function upsertTelegramUser(data: {
     },
     update: {
       username: data.username ?? null,
-      firstName: data.firstName ?? null,
+      // имя пользователь мог поменять в профиле — не перезаписываем его при каждом входе
       avatarUrl: data.avatarUrl ?? null,
       ...(isAdmin ? { role: "ADMIN" as const } : {}),
     },

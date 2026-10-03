@@ -30,3 +30,13 @@ export async function setStartupStatus(startupId: string, status: Status): Promi
   revalidatePath("/");
   revalidatePath(`/startup/${startup.slug}`);
 }
+
+/** Полный пересчёт рейтингов (кнопка в админке). */
+export async function recomputeAllScores(): Promise<void> {
+  const user = await getCurrentUser();
+  if (!user || user.role !== "ADMIN") return;
+  const { recomputeStartupScores, recomputeUserScores } = await import("@/lib/score");
+  await recomputeStartupScores();
+  await recomputeUserScores();
+  revalidatePath("/", "layout");
+}

@@ -4,19 +4,14 @@ import { useState } from "react";
 import { useFormState } from "react-dom";
 import Link from "next/link";
 import { createPreOrder } from "@/app/actions/preorder";
-import { formatPrice } from "@/lib/format";
+import { useI18n } from "@/i18n/client";
+import { formatPrice } from "@/i18n/format";
 import { SubmitButton } from "./SubmitButton";
 import { FieldError } from "./FieldError";
+import { FormMessage } from "./FormMessage";
 
-export function SponsorForm({
-  startupId,
-  price,
-  defaultContact,
-}: {
-  startupId: string;
-  price: number;
-  defaultContact: string;
-}) {
+export function SponsorForm({ startupId, price, defaultContact }: { startupId: string; price: number; defaultContact: string }) {
+  const { d, locale } = useI18n();
   const [state, formAction] = useFormState(createPreOrder, { ok: false });
   const [qty, setQty] = useState(1);
   const e = state.fieldErrors ?? {};
@@ -24,16 +19,12 @@ export function SponsorForm({
   return (
     <form action={formAction} className="space-y-5">
       <input type="hidden" name="startupId" value={startupId} />
-      {state.message && !state.ok && (
-        <div className="rounded-lg border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger" role="alert">
-          {state.message}
-        </div>
-      )}
+      {state.message && !state.ok && <FormMessage ok={false} message={state.message} />}
 
       <div>
-        <label htmlFor="quantity" className="label">Количество</label>
+        <label htmlFor="quantity" className="label">{d.sponsorPage.quantity}</label>
         <div className="flex items-center gap-2">
-          <button type="button" className="btn-secondary h-10 w-10 p-0" onClick={() => setQty((q) => Math.max(1, q - 1))} aria-label="Меньше">−</button>
+          <button type="button" className="btn-secondary h-10 w-10 p-0" onClick={() => setQty((q) => Math.max(1, q - 1))} aria-label={d.sponsorPage.less}>−</button>
           <input
             id="quantity"
             name="quantity"
@@ -44,33 +35,33 @@ export function SponsorForm({
             onChange={(ev) => setQty(Math.min(100, Math.max(1, Number(ev.target.value) || 1)))}
             className="input h-10 w-20 text-center"
           />
-          <button type="button" className="btn-secondary h-10 w-10 p-0" onClick={() => setQty((q) => Math.min(100, q + 1))} aria-label="Больше">+</button>
+          <button type="button" className="btn-secondary h-10 w-10 p-0" onClick={() => setQty((q) => Math.min(100, q + 1))} aria-label={d.sponsorPage.more}>+</button>
         </div>
         <FieldError errors={e.quantity} />
       </div>
 
       <div>
-        <label htmlFor="contactInfo" className="label">Контакт для связи *</label>
-        <input id="contactInfo" name="contactInfo" defaultValue={defaultContact} required maxLength={200} className="input" placeholder="@username или email" />
-        <p className="hint">Фаундер свяжется с вами для оплаты и оказания услуги</p>
+        <label htmlFor="contactInfo" className="label">{d.sponsorPage.contact} *</label>
+        <input id="contactInfo" name="contactInfo" defaultValue={defaultContact} required maxLength={200} className="input" placeholder={d.sponsorPage.contactPh} />
+        <p className="hint">{d.sponsorPage.contactHint}</p>
         <FieldError errors={e.contactInfo} />
       </div>
 
       <label className="flex items-start gap-3 text-sm">
         <input type="checkbox" name="agree" required className="mt-0.5 h-4 w-4 shrink-0 accent-accent" />
         <span className="text-muted">
-          Я понимаю, что оформляю <b className="text-fg">предзаказ услуги</b> (купля-продажа), а не инвестицию, и принимаю{" "}
-          <Link href="/terms" target="_blank" className="text-accent hover:underline">условия</Link>.
+          {d.sponsorPage.agree}{" "}
+          <Link href="/terms" target="_blank" className="text-accent hover:underline">{d.sponsorPage.agreeLink}</Link>.
         </span>
       </label>
       <FieldError errors={e.agree} />
 
       <div className="flex items-center justify-between gap-4 border-t border-border pt-5">
         <div>
-          <div className="text-xs text-muted">Итого</div>
-          <div className="text-2xl font-bold">{formatPrice(price * qty)}</div>
+          <div className="text-xs text-muted">{d.sponsorPage.total}</div>
+          <div className="text-2xl font-bold tabular-nums">{formatPrice(price * qty, locale)}</div>
         </div>
-        <SubmitButton pendingText="Оформляем…" className="px-6 py-3">Оформить предзаказ</SubmitButton>
+        <SubmitButton pendingText={d.sponsorPage.submitting} className="px-6 py-3">{d.sponsorPage.submit}</SubmitButton>
       </div>
     </form>
   );

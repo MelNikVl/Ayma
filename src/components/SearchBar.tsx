@@ -2,9 +2,11 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, type FormEvent } from "react";
+import { useI18n } from "@/i18n/client";
 import { SearchIcon } from "./icons";
 
 export function SearchBar() {
+  const { d } = useI18n();
   const router = useRouter();
   const params = useSearchParams();
   const [q, setQ] = useState(params.get("q") ?? "");
@@ -25,8 +27,8 @@ export function SearchBar() {
         type="search"
         value={q}
         onChange={(e) => setQ(e.target.value)}
-        placeholder="Поиск стартапов, технологий, тегов…"
-        aria-label="Поиск"
+        placeholder={d.nav.search}
+        aria-label={d.nav.search}
         className="input h-10 rounded-full border-transparent bg-surface-2 pl-9 focus:bg-surface"
       />
     </form>

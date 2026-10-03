@@ -14,6 +14,7 @@ import { gunzipSync } from "zlib";
 import { join } from "path";
 import { PrismaClient, Prisma } from "@prisma/client";
 import { slugify } from "../src/lib/slug";
+import { recomputeStartupScores, recomputeUserScores } from "../src/lib/score";
 
 const prisma = new PrismaClient();
 
@@ -352,6 +353,9 @@ async function main() {
   await removeDemo();
   await importAtlas();
   await importHatuli();
+  const n = await recomputeStartupScores();
+  await recomputeUserScores();
+  console.log(`✓ Рейтинг пересчитан: ${n}`);
 }
 
 main()

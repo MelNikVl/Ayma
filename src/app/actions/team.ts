@@ -8,6 +8,7 @@ import { fetchContributorLogins, parseGithubUrl } from "@/lib/github";
 import { displayName } from "@/lib/format";
 import { escapeHtml } from "@/lib/telegram";
 import { env } from "@/lib/env";
+import { refreshScores } from "@/lib/score";
 
 export type ClaimState = { ok: boolean; message?: string };
 
@@ -23,15 +24,15 @@ function revalidateStartup(slug: string) {
  */
 export async function claimStartup(startupId: string, _prev: ClaimState, formData: FormData): Promise<ClaimState> {
   const user = await getCurrentUser();
-  if (!user) return { ok: false, message: "Войдите через GitHub, чтобы забрать проект" };
+  if (!user) return { ok: false, message: "loginRequired" };
 
   const startup = await prisma.startup.findUnique({
     where: { id: startupId },
     select: { id: true, slug: true, name: true, githubUrl: true, _count: { select: { members: true } } },
   });
-  if (!startup) return { ok: false, message: "Проект не найден" };
+  if (!startup) return { ok: false, message: "notFound" };
   if (startup._count.members >= MAX_MEMBERS) {
-    return { ok: false, message: `В команде уже ${MAX_MEMBERS} участника — это максимум. Попросите кого-то из них освободить место.` };
+    return { ok: false, message: "teamFull" };
   }
 
   const ref = parseGithubUrl(startup.githubUrl);
@@ -39,14 +40,15 @@ export async function claimStartup(startupId: string, _prev: ClaimState, formDat
     const contributors = await fetchContributorLogins(ref);
     if (contributors?.includes(user.githubLogin.toLowerCase())) {
       const result = await addMember(startup.id, user.id);
-      if (result === "full") return { ok: false, message: "Команда уже заполнена (3 участника)." };
+      if (result === "full") return { ok: false, message: "teamFull" };
       await notifyTeam(
         startup.id,
         `👋 ${escapeHtml(displayName(user))} присоединился к проекту <b>${escapeHtml(startup.name)}</b> (подтверждено по GitHub).`,
         user.id,
       );
+      await refreshScores(startup.id);
       revalidateStartup(startup.slug);
-      return { ok: true, message: "Готово! GitHub подтвердил ваше участие — проект добавлен в ваш кабинет." };
+      return { ok: true, message: "claimedOk" };
     }
   }
 
@@ -63,15 +65,9 @@ export async function claimStartup(startupId: string, _prev: ClaimState, formDat
   );
   revalidateStartup(startup.slug);
 
-  const why = !user.githubLogin
-    ? "Ваш аккаунт не привязан к GitHub, поэтому проверить коммиты автоматически не получилось."
-    : !ref
-      ? "У проекта не указан GitHub-репозиторий."
-      : `Не нашли @${user.githubLogin} среди авторов коммитов репозитория (или GitHub временно недоступен).`;
-  return {
-    ok: true,
-    message: `${why} Заявка отправлена — её подтвердит команда проекта или модератор.`,
-  };
+  const why = !user.githubLogin ? "claimNoGithub" : !ref ? "claimNoRepo" : "claimNotFound";
+  // ключи двух сообщений через «|» — интерфейс переведёт и склеит
+  return { ok: true, message: `${why}|claimSent` };
 }
 
 async function loadClaimForReview(claimId: string) {
@@ -99,6 +95,7 @@ export async function approveClaim(claimId: string): Promise<void> {
   const claim = await loadClaimForReview(claimId);
   if (!claim) return;
   const result = await addMember(claim.startup.id, claim.userId);
+  await refreshScores(claim.startup.id);
   if (result === "added" || result === "exists") {
     const { sendTelegramMessage } = await import("@/lib/telegram");
     await sendTelegramMessage(
@@ -147,5 +144,6 @@ export async function removeMember(memberId: string): Promise<void> {
       }
     }
   });
+  await refreshScores(member.startupId);
   revalidateStartup(member.startup.slug);
 }

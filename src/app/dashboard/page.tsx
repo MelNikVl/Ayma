@@ -3,54 +3,65 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
 import { MAX_MEMBERS } from "@/lib/access";
-import { displayName, formatCompact, formatPrice, formatRelative } from "@/lib/format";
+import { displayName } from "@/lib/format";
+import { levelFor } from "@/lib/levels";
+import { getI18n } from "@/i18n/server";
+import { fill, formatCompact, formatPrice, formatRelative } from "@/i18n/format";
 import { refreshGithub } from "@/app/actions/startup";
 import { cancelMyPreOrder, setPreOrderStatus } from "@/app/actions/preorder";
 import { approveClaim, rejectClaim, removeMember } from "@/app/actions/team";
+import { respondCollab } from "@/app/actions/collab";
 import { StartupLogo } from "@/components/StartupLogo";
 import { StatusPill } from "@/components/StatusPill";
 import { Avatar } from "@/components/Avatar";
+import { ScorePill, ScoreRing } from "@/components/ScoreBadge";
+import { ProfileForm } from "@/components/ProfileForm";
+import { profileHref } from "@/components/UserMenu";
 import { GithubIcon } from "@/components/icons";
 
-export const metadata = { title: "Мой кабинет" };
 export const dynamic = "force-dynamic";
 
+export function generateMetadata() {
+  return { title: getI18n().d.dashboard.title };
+}
+
 export default async function DashboardPage() {
+  const { d, locale } = getI18n();
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/dashboard");
 
-  const memberships = await prisma.startupMember.findMany({
-    where: { userId: user.id },
-    orderBy: { createdAt: "desc" },
-    select: {
-      role: true,
-      startup: {
-        select: {
-          id: true, slug: true, name: true, logoUrl: true, status: true, viewsCount: true,
-          githubUrl: true, githubStars: true, preOrderEnabled: true, preOrderPrice: true, preOrderGoal: true,
-          preOrders: { where: { status: "PAID" }, select: { amount: true } },
-          members: {
-            orderBy: { createdAt: "asc" },
-            select: {
-              id: true, role: true, userId: true,
-              user: { select: { username: true, firstName: true, avatarUrl: true, githubLogin: true } },
+  const [me, memberships] = await Promise.all([
+    prisma.user.findUniqueOrThrow({
+      where: { id: user.id },
+      select: { bio: true, skills: true, contactUrl: true, openToCollab: true, score: true, firstName: true },
+    }),
+    prisma.startupMember.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: "desc" },
+      select: {
+        role: true,
+        startup: {
+          select: {
+            id: true, slug: true, name: true, logoUrl: true, status: true, viewsCount: true, score: true, votesCount: true,
+            githubUrl: true, preOrderEnabled: true, preOrderPrice: true, preOrderGoal: true,
+            preOrders: { where: { status: "PAID" }, select: { amount: true } },
+            members: {
+              orderBy: { createdAt: "asc" },
+              select: { id: true, role: true, userId: true, user: { select: { username: true, firstName: true, avatarUrl: true, githubLogin: true } } },
             },
           },
         },
       },
-    },
-  });
+    }),
+  ]);
   const myStartupIds = memberships.map((m) => m.startup.id);
 
-  const [incoming, mine, teamClaims, myClaims] = await Promise.all([
+  const [incoming, mine, teamClaims, myClaims, collabIn, collabOut] = await Promise.all([
     prisma.preOrder.findMany({
       where: { startupId: { in: myStartupIds } },
       orderBy: { createdAt: "desc" },
       take: 100,
-      include: {
-        startup: { select: { name: true, slug: true } },
-        sponsor: { select: { username: true, firstName: true, avatarUrl: true } },
-      },
+      include: { startup: { select: { name: true, slug: true } }, sponsor: { select: { username: true, firstName: true, avatarUrl: true } } },
     }),
     prisma.preOrder.findMany({
       where: { sponsorId: user.id },
@@ -61,61 +72,82 @@ export default async function DashboardPage() {
     prisma.claimRequest.findMany({
       where: { startupId: { in: myStartupIds }, status: "PENDING" },
       orderBy: { createdAt: "asc" },
-      include: {
-        startup: { select: { name: true, slug: true } },
-        user: { select: { username: true, firstName: true, avatarUrl: true, githubLogin: true } },
-      },
+      include: { startup: { select: { name: true, slug: true } }, user: { select: { username: true, firstName: true, avatarUrl: true, githubLogin: true } } },
     }),
     prisma.claimRequest.findMany({
       where: { userId: user.id, status: { not: "APPROVED" } },
       orderBy: { createdAt: "desc" },
       include: { startup: { select: { name: true, slug: true, logoUrl: true } } },
     }),
+    prisma.collabRequest.findMany({
+      where: { OR: [{ toUserId: user.id }, { toStartupId: { in: myStartupIds } }] },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+      include: {
+        fromUser: { select: { id: true, username: true, firstName: true, avatarUrl: true, githubLogin: true } },
+        fromStartup: { select: { name: true, slug: true } },
+        toStartup: { select: { name: true, slug: true } },
+      },
+    }),
+    prisma.collabRequest.findMany({
+      where: { fromUserId: user.id },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+      include: {
+        toStartup: { select: { name: true, slug: true } },
+        toUser: { select: { id: true, username: true, firstName: true, githubLogin: true } },
+      },
+    }),
   ]);
 
   const pendingIncoming = incoming.filter((o) => o.status === "PENDING").length;
+  const collabStatus = (s: string) => (s === "ACCEPTED" ? d.collab.accepted : s === "DECLINED" ? d.collab.declined : d.collab.pending);
 
   return (
     <div className="mx-auto max-w-5xl space-y-8 px-4 py-8 sm:px-6">
       {/* Профиль */}
       <div className="card flex flex-col gap-4 p-5 sm:flex-row sm:items-center">
-        <div className="flex min-w-0 flex-1 items-center gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-4">
           <Avatar user={user} size={56} />
           <div className="min-w-0">
-            <h1 className="truncate text-2xl font-bold tracking-tight">{user.firstName ?? displayName(user)}</h1>
+            <h1 className="truncate text-2xl font-bold tracking-tight">{me.firstName ?? displayName(user)}</h1>
             <p className="text-sm text-muted">
               {user.githubLogin ? (
                 <a href={`https://github.com/${user.githubLogin}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:text-fg">
                   <GithubIcon className="h-3.5 w-3.5" /> {user.githubLogin}
                 </a>
               ) : (
-                "GitHub не привязан"
+                d.dashboard.noGithub
               )}
             </p>
+          </div>
+          <div className="ml-auto flex items-center gap-2 sm:ml-4">
+            <ScoreRing score={me.score} size={48} label={d.dashboard.myScore} />
+            <div className="hidden text-xs sm:block">
+              <div className="text-muted">{d.dashboard.myScore}</div>
+              <div className="font-semibold">{d.score.levels[levelFor(me.score)]}</div>
+            </div>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
           {!user.githubLogin && (
             <a href="/api/auth/github?next=/dashboard" className="btn-secondary">
-              <GithubIcon className="h-4 w-4" /> Привязать GitHub
+              <GithubIcon className="h-4 w-4" /> {d.dashboard.linkGithub}
             </a>
           )}
-          <Link href="/" className="btn-secondary">Найти свой проект</Link>
-          <Link href="/startup/new" className="btn-primary">+ Добавить стартап</Link>
+          <Link href={profileHref(user)} className="btn-secondary">{d.dashboard.viewProfile}</Link>
+          <Link href="/startup/new" className="btn-primary">{d.dashboard.add}</Link>
         </div>
       </div>
 
       {/* Мои проекты */}
       <section>
-        <h2 className="mb-3 text-lg font-bold">Мои проекты</h2>
+        <h2 className="mb-3 text-lg font-bold">{d.dashboard.myProjects}</h2>
         {memberships.length === 0 ? (
           <div className="card p-6 text-sm text-muted">
-            <p>Вы пока не участник ни одного проекта.</p>
-            <p className="mt-2">
-              Делали проект на HackAlem или он уже есть в каталоге? Найдите его через{" "}
-              <Link href="/" className="text-accent hover:underline">поиск</Link> и нажмите «Это мой проект». Если ваш
-              GitHub-логин есть среди авторов коммитов, проект сразу появится здесь. В команде проекта может быть до {MAX_MEMBERS} человек.
-            </p>
+            <p>{d.dashboard.noProjects}</p>
+            <p className="mt-2">{d.dashboard.noProjectsHelp}</p>
+            <Link href="/" className="btn-secondary mt-4">{d.dashboard.findProject}</Link>
           </div>
         ) : (
           <ul className="space-y-3">
@@ -130,29 +162,27 @@ export default async function DashboardPage() {
                         <div className="flex flex-wrap items-center gap-2">
                           <Link href={`/startup/${s.slug}`} className="truncate font-semibold hover:text-accent">{s.name}</Link>
                           <StatusPill status={s.status} />
-                          <span className="text-[11px] text-muted">{role === "OWNER" ? "владелец" : "участник"}</span>
+                          <ScorePill score={s.score} />
+                          <span className="text-[11px] text-muted">{role === "OWNER" ? d.dashboard.owner : d.dashboard.member}</span>
                         </div>
                         <div className="mt-0.5 text-xs text-muted">
-                          👁 {formatCompact(s.viewsCount)} ·{" "}
-                          {s.preOrderEnabled ? `предзаказ ${formatPrice(s.preOrderPrice)}` : "предзаказ выключен"} · собрано {formatPrice(raised)}
-                          {s.preOrderGoal > 0 && ` из ${formatPrice(s.preOrderGoal)}`}
+                          👁 {formatCompact(s.viewsCount)} · ▲ {s.votesCount} ·{" "}
+                          {s.preOrderEnabled ? fill(d.dashboard.preorderOn, { price: formatPrice(s.preOrderPrice, locale) }) : d.dashboard.preorderOff} ·{" "}
+                          {fill(d.dashboard.raised, { sum: formatPrice(raised, locale) })}
                         </div>
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {s.githubUrl && (
                         <form action={refreshGithub.bind(null, s.id)}>
-                          <button className="btn-secondary btn-sm" type="submit">Обновить GitHub</button>
+                          <button className="btn-secondary btn-sm" type="submit">{d.dashboard.refreshGithub}</button>
                         </form>
                       )}
-                      <Link href={`/startup/${s.slug}/edit`} className="btn-primary btn-sm">Логотип, цена, описание</Link>
+                      <Link href={`/startup/${s.slug}/edit`} className="btn-primary btn-sm">{d.dashboard.editCard}</Link>
                     </div>
                   </div>
-
                   <div className="mt-4 border-t border-border/60 pt-3">
-                    <div className="mb-2 text-xs font-medium text-muted">
-                      Команда · {s.members.length} из {MAX_MEMBERS}
-                    </div>
+                    <div className="mb-2 text-xs font-medium text-muted">{fill(d.dashboard.team, { n: s.members.length })}</div>
                     <ul className="flex flex-wrap gap-2">
                       {s.members.map((m) => {
                         const self = m.userId === user.id;
@@ -160,13 +190,11 @@ export default async function DashboardPage() {
                         return (
                           <li key={m.id} className="flex items-center gap-2 rounded-lg bg-surface-2 py-1 pl-1 pr-2 text-sm">
                             <Avatar user={m.user} size={24} />
-                            <span>{m.user.firstName ?? displayName(m.user)}{self && " (вы)"}</span>
-                            {m.role === "OWNER" && <span className="text-[11px] text-muted">владелец</span>}
+                            <span>{m.user.firstName ?? displayName(m.user)}{self && ` (${d.dashboard.you})`}</span>
+                            {m.role === "OWNER" && <span className="text-[11px] text-muted">{d.dashboard.owner}</span>}
                             {canRemove && (
                               <form action={removeMember.bind(null, m.id)}>
-                                <button type="submit" className="text-xs text-danger hover:underline">
-                                  {self ? "выйти" : "убрать"}
-                                </button>
+                                <button type="submit" className="text-xs text-danger hover:underline">{self ? d.dashboard.leave : d.dashboard.remove}</button>
                               </form>
                             )}
                           </li>
@@ -181,11 +209,10 @@ export default async function DashboardPage() {
         )}
       </section>
 
-      {/* Заявки в мои проекты */}
       {teamClaims.length > 0 && (
         <section>
           <h2 className="mb-3 text-lg font-bold">
-            Заявки в команду <span className="ml-1 rounded-full bg-accent px-2 py-0.5 align-middle text-xs text-white">{teamClaims.length}</span>
+            {d.dashboard.claims} <span className="ml-1 rounded-full bg-accent px-2 py-0.5 align-middle text-xs text-white">{teamClaims.length}</span>
           </h2>
           <div className="card divide-y divide-border/60">
             {teamClaims.map((c) => (
@@ -197,19 +224,13 @@ export default async function DashboardPage() {
                       {c.user.firstName ?? displayName(c.user)}
                       {c.user.githubLogin && <span className="ml-1 font-normal text-muted">@{c.user.githubLogin}</span>}
                     </div>
-                    <div className="text-xs text-muted">
-                      хочет в {c.startup.name} · {formatRelative(c.createdAt)}
-                    </div>
+                    <div className="text-xs text-muted">{fill(d.dashboard.wantsIn, { name: c.startup.name })} · {formatRelative(c.createdAt, locale)}</div>
                     {c.message && <p className="mt-1 text-sm">«{c.message}»</p>}
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <form action={approveClaim.bind(null, c.id)}>
-                    <button className="btn-primary btn-sm" type="submit">Принять</button>
-                  </form>
-                  <form action={rejectClaim.bind(null, c.id)}>
-                    <button className="btn-secondary btn-sm" type="submit">Отклонить</button>
-                  </form>
+                  <form action={approveClaim.bind(null, c.id)}><button className="btn-primary btn-sm" type="submit">{d.dashboard.accept}</button></form>
+                  <form action={rejectClaim.bind(null, c.id)}><button className="btn-secondary btn-sm" type="submit">{d.dashboard.reject}</button></form>
                 </div>
               </div>
             ))}
@@ -217,19 +238,16 @@ export default async function DashboardPage() {
         </section>
       )}
 
-      {/* Мои заявки */}
       {myClaims.length > 0 && (
         <section>
-          <h2 className="mb-3 text-lg font-bold">Мои заявки</h2>
+          <h2 className="mb-3 text-lg font-bold">{d.dashboard.myClaims}</h2>
           <div className="card divide-y divide-border/60">
             {myClaims.map((c) => (
               <div key={c.id} className="flex items-center gap-3 p-4 text-sm">
                 <StartupLogo name={c.startup.name} logoUrl={c.startup.logoUrl} size={32} />
-                <Link href={`/startup/${c.startup.slug}`} className="min-w-0 flex-1 truncate font-semibold hover:text-accent">
-                  {c.startup.name}
-                </Link>
+                <Link href={`/startup/${c.startup.slug}`} className="min-w-0 flex-1 truncate font-semibold hover:text-accent">{c.startup.name}</Link>
                 <span className={c.status === "REJECTED" ? "text-danger" : "text-warning"}>
-                  {c.status === "REJECTED" ? "отклонена" : "на проверке"}
+                  {c.status === "REJECTED" ? d.dashboard.claimRejected : d.dashboard.claimPending}
                 </span>
               </div>
             ))}
@@ -237,17 +255,75 @@ export default async function DashboardPage() {
         </section>
       )}
 
-      {/* Входящие предзаказы */}
+      {/* Коллаборации */}
+      <section className="grid gap-6 lg:grid-cols-2">
+        <div>
+          <h2 className="mb-3 text-lg font-bold">{d.collab.inbox}</h2>
+          {collabIn.length === 0 ? (
+            <div className="card p-6 text-center text-sm text-muted">{d.collab.empty}</div>
+          ) : (
+            <div className="card divide-y divide-border/60">
+              {collabIn.map((c) => (
+                <div key={c.id} className="space-y-2 p-4 text-sm">
+                  <div className="flex items-center gap-2">
+                    <Avatar user={c.fromUser} size={28} />
+                    <Link href={profileHref(c.fromUser)} className="font-semibold hover:text-accent">{c.fromUser.firstName ?? displayName(c.fromUser)}</Link>
+                    {c.fromStartup && <span className="text-muted">· {c.fromStartup.name}</span>}
+                    <span className="ml-auto text-xs text-muted">{formatRelative(c.createdAt, locale)}</span>
+                  </div>
+                  <div className="text-xs text-muted">
+                    {d.collab.kinds[c.kind as keyof typeof d.collab.kinds] ?? c.kind}
+                    {c.toStartup && <> → {c.toStartup.name}</>}
+                  </div>
+                  <p className="whitespace-pre-line">{c.message}</p>
+                  {c.contact && <p className="text-xs"><b>{d.collab.contact}:</b> {c.contact}</p>}
+                  {c.status === "PENDING" ? (
+                    <div className="flex gap-2">
+                      <form action={respondCollab.bind(null, c.id, true)}><button className="btn-primary btn-sm" type="submit">{d.collab.accept}</button></form>
+                      <form action={respondCollab.bind(null, c.id, false)}><button className="btn-secondary btn-sm" type="submit">{d.collab.decline}</button></form>
+                    </div>
+                  ) : (
+                    <span className={c.status === "ACCEPTED" ? "text-xs font-semibold text-success" : "text-xs text-muted"}>{collabStatus(c.status)}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div>
+          <h2 className="mb-3 text-lg font-bold">{d.collab.outbox}</h2>
+          {collabOut.length === 0 ? (
+            <div className="card p-6 text-center text-sm text-muted">{d.collab.empty}</div>
+          ) : (
+            <div className="card divide-y divide-border/60">
+              {collabOut.map((c) => (
+                <div key={c.id} className="flex items-center gap-3 p-4 text-sm">
+                  <span className="min-w-0 flex-1 truncate">
+                    {c.toStartup ? (
+                      <Link href={`/startup/${c.toStartup.slug}`} className="font-semibold hover:text-accent">{c.toStartup.name}</Link>
+                    ) : c.toUser ? (
+                      <Link href={profileHref(c.toUser)} className="font-semibold hover:text-accent">{c.toUser.firstName ?? displayName(c.toUser)}</Link>
+                    ) : null}
+                    <span className="ml-1 text-xs text-muted">· {d.collab.kinds[c.kind as keyof typeof d.collab.kinds] ?? c.kind}</span>
+                  </span>
+                  <span className={c.status === "ACCEPTED" ? "text-xs font-semibold text-success" : c.status === "DECLINED" ? "text-xs text-danger" : "text-xs text-warning"}>
+                    {collabStatus(c.status)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
       {memberships.length > 0 && (
         <section>
           <h2 className="mb-3 text-lg font-bold">
-            Входящие предзаказы
-            {pendingIncoming > 0 && (
-              <span className="ml-2 rounded-full bg-accent px-2 py-0.5 align-middle text-xs text-white">{pendingIncoming}</span>
-            )}
+            {d.dashboard.incoming}
+            {pendingIncoming > 0 && <span className="ml-2 rounded-full bg-accent px-2 py-0.5 align-middle text-xs text-white">{pendingIncoming}</span>}
           </h2>
           {incoming.length === 0 ? (
-            <div className="card p-6 text-center text-sm text-muted">Предзаказов пока нет.</div>
+            <div className="card p-6 text-center text-sm text-muted">{d.dashboard.noIncoming}</div>
           ) : (
             <div className="card divide-y divide-border/60">
               {incoming.map((o) => (
@@ -260,26 +336,20 @@ export default async function DashboardPage() {
                         <StatusPill status={o.status} kind="payment" />
                       </div>
                       <div className="mt-0.5 truncate text-xs text-muted">
-                        {o.startup.name} · {o.quantity} шт. · контакт: {o.contactInfo ?? "—"} · {formatRelative(o.createdAt)}
+                        {o.startup.name} · {fill(d.dashboard.pcs, { n: o.quantity })} · {fill(d.dashboard.contact, { c: o.contactInfo ?? "—" })} · {formatRelative(o.createdAt, locale)}
                       </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="mr-2 font-bold">{formatPrice(o.amount)}</span>
+                    <span className="mr-2 font-bold tabular-nums">{formatPrice(o.amount, locale)}</span>
                     {o.status === "PENDING" && (
                       <>
-                        <form action={setPreOrderStatus.bind(null, o.id, "PAID")}>
-                          <button className="btn-primary btn-sm" type="submit">Оплачен</button>
-                        </form>
-                        <form action={setPreOrderStatus.bind(null, o.id, "CANCELED")}>
-                          <button className="btn-secondary btn-sm" type="submit">Отменить</button>
-                        </form>
+                        <form action={setPreOrderStatus.bind(null, o.id, "PAID")}><button className="btn-primary btn-sm" type="submit">{d.dashboard.markPaid}</button></form>
+                        <form action={setPreOrderStatus.bind(null, o.id, "CANCELED")}><button className="btn-secondary btn-sm" type="submit">{d.dashboard.cancel}</button></form>
                       </>
                     )}
                     {o.status === "PAID" && (
-                      <form action={setPreOrderStatus.bind(null, o.id, "PENDING")}>
-                        <button className="btn-ghost btn-sm text-muted" type="submit">Вернуть в ожидание</button>
-                      </form>
+                      <form action={setPreOrderStatus.bind(null, o.id, "PENDING")}><button className="btn-ghost btn-sm text-muted" type="submit">{d.dashboard.backToPending}</button></form>
                     )}
                   </div>
                 </div>
@@ -289,12 +359,11 @@ export default async function DashboardPage() {
         </section>
       )}
 
-      {/* Мои предзаказы как спонсора */}
       <section>
-        <h2 className="mb-3 text-lg font-bold">Мои предзаказы</h2>
+        <h2 className="mb-3 text-lg font-bold">{d.dashboard.myOrders}</h2>
         {mine.length === 0 ? (
           <div className="card p-6 text-center text-sm text-muted">
-            Вы ещё никого не поддержали. <Link href="/" className="text-accent hover:underline">Посмотреть каталог</Link>.
+            {d.dashboard.noOrders} <Link href="/" className="text-accent hover:underline">{d.dashboard.toCatalog}</Link>.
           </div>
         ) : (
           <div className="card divide-y divide-border/60">
@@ -307,24 +376,37 @@ export default async function DashboardPage() {
                       <Link href={`/startup/${o.startup.slug}`} className="font-semibold hover:text-accent">{o.startup.name}</Link>
                       <StatusPill status={o.status} kind="payment" />
                     </div>
-                    <div className="mt-0.5 text-xs text-muted">{o.quantity} шт. · {formatRelative(o.createdAt)}</div>
+                    <div className="mt-0.5 text-xs text-muted">{fill(d.dashboard.pcs, { n: o.quantity })} · {formatRelative(o.createdAt, locale)}</div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="mr-2 font-bold">{formatPrice(o.amount)}</span>
+                  <span className="mr-2 font-bold tabular-nums">{formatPrice(o.amount, locale)}</span>
                   {o.status === "PENDING" && o.paymentLink && (
-                    <a href={o.paymentLink} target="_blank" rel="noopener noreferrer" className="btn-primary btn-sm">Оплатить</a>
+                    <a href={o.paymentLink} target="_blank" rel="noopener noreferrer" className="btn-primary btn-sm">{d.dashboard.pay}</a>
                   )}
                   {o.status === "PENDING" && (
-                    <form action={cancelMyPreOrder.bind(null, o.id)}>
-                      <button className="btn-secondary btn-sm" type="submit">Отменить</button>
-                    </form>
+                    <form action={cancelMyPreOrder.bind(null, o.id)}><button className="btn-secondary btn-sm" type="submit">{d.dashboard.cancel}</button></form>
                   )}
                 </div>
               </div>
             ))}
           </div>
         )}
+      </section>
+
+      {/* Профиль разработчика */}
+      <section className="card p-5 sm:p-6" id="profile">
+        <h2 className="text-lg font-bold">{d.dashboard.profile}</h2>
+        <p className="mb-4 mt-1 text-sm text-muted">{d.dashboard.profileText}</p>
+        <ProfileForm
+          defaults={{
+            firstName: me.firstName ?? displayName(user),
+            bio: me.bio ?? "",
+            skills: me.skills.join(", "),
+            contactUrl: me.contactUrl ?? "",
+            openToCollab: me.openToCollab,
+          }}
+        />
       </section>
     </div>
   );

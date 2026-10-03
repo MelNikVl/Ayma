@@ -3,24 +3,26 @@ import { notFound } from "next/navigation";
 import type { Status } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
-import { displayName, formatPrice, formatRelative } from "@/lib/format";
-import { setStartupStatus } from "@/app/actions/admin";
+import { displayName } from "@/lib/format";
+import { getI18n } from "@/i18n/server";
+import { fill, formatPrice, formatRelative } from "@/i18n/format";
+import { tTag } from "@/i18n/dictionaries";
+import { recomputeAllScores, setStartupStatus } from "@/app/actions/admin";
 import { approveClaim, rejectClaim } from "@/app/actions/team";
 import { Avatar } from "@/components/Avatar";
 import { StartupLogo } from "@/components/StartupLogo";
 import { StatusPill } from "@/components/StatusPill";
 import { cn } from "@/lib/cn";
 
-export const metadata = { title: "Модерация" };
+export function generateMetadata() {
+  return { title: getI18n().d.admin.title };
+}
 export const dynamic = "force-dynamic";
 
-const tabs: { key: Status; label: string }[] = [
-  { key: "PENDING", label: "На модерации" },
-  { key: "APPROVED", label: "Опубликованные" },
-  { key: "REJECTED", label: "Отклонённые" },
-];
+const tabs: { key: Status }[] = [{ key: "PENDING" }, { key: "APPROVED" }, { key: "REJECTED" }];
 
 export default async function AdminPage({ searchParams }: { searchParams: { status?: string } }) {
+  const { d, locale } = getI18n();
   const user = await getCurrentUser();
   if (!user || user.role !== "ADMIN") notFound();
 
@@ -49,14 +51,19 @@ export default async function AdminPage({ searchParams }: { searchParams: { stat
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
-      <h1 className="text-2xl font-bold tracking-tight">Модерация</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold tracking-tight">{d.admin.title}</h1>
+        <form action={recomputeAllScores}>
+          <button type="submit" className="btn-secondary btn-sm">{d.admin.recompute}</button>
+        </form>
+      </div>
       <p className="mt-1 text-sm text-muted">
-        Оплачено предзаказов: {stats._count} на {formatPrice(stats._sum.amount ?? 0)}
+        {fill(d.admin.paidStats, { n: stats._count, sum: formatPrice(stats._sum.amount ?? 0, locale) })}
       </p>
 
       {claims.length > 0 && (
         <section className="mt-6">
-          <h2 className="mb-3 text-lg font-bold">Заявки «это мой проект» · {claims.length}</h2>
+          <h2 className="mb-3 text-lg font-bold">{fill(d.admin.claims, { n: claims.length })}</h2>
           <div className="card divide-y divide-border/60">
             {claims.map((c) => (
               <div key={c.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
@@ -68,25 +75,25 @@ export default async function AdminPage({ searchParams }: { searchParams: { stat
                       {c.user.githubLogin ? (
                         <a href={`https://github.com/${c.user.githubLogin}`} target="_blank" rel="noreferrer" className="ml-1 font-normal text-accent">@{c.user.githubLogin}</a>
                       ) : (
-                        <span className="ml-1 font-normal text-muted">без GitHub</span>
+                        <span className="ml-1 font-normal text-muted">{d.admin.withoutGithub}</span>
                       )}
                     </div>
                     <div className="text-xs text-muted">
                       → <Link href={`/startup/${c.startup.slug}`} className="hover:text-fg">{c.startup.name}</Link>
                       {c.startup.githubUrl && (
-                        <> · <a href={`${c.startup.githubUrl}/graphs/contributors`} target="_blank" rel="noreferrer" className="hover:text-fg">контрибьюторы</a></>
+                        <> · <a href={`${c.startup.githubUrl}/graphs/contributors`} target="_blank" rel="noreferrer" className="hover:text-fg">{d.admin.contributors}</a></>
                       )}
-                      {" "}· в команде {c.startup._count.members} · {formatRelative(c.createdAt)}
+                      {" "}· {fill(d.admin.inTeam, { n: c.startup._count.members })} · {formatRelative(c.createdAt, locale)}
                     </div>
                     {c.message && <p className="mt-1">«{c.message}»</p>}
                   </div>
                 </div>
                 <div className="flex gap-2">
                   <form action={approveClaim.bind(null, c.id)}>
-                    <button className="btn-primary btn-sm" type="submit">Принять</button>
+                    <button className="btn-primary btn-sm" type="submit">{d.dashboard.accept}</button>
                   </form>
                   <form action={rejectClaim.bind(null, c.id)}>
-                    <button className="btn-secondary btn-sm" type="submit">Отклонить</button>
+                    <button className="btn-secondary btn-sm" type="submit">{d.dashboard.reject}</button>
                   </form>
                 </div>
               </div>
@@ -102,13 +109,13 @@ export default async function AdminPage({ searchParams }: { searchParams: { stat
             href={`/admin?status=${t.key}`}
             className={cn("chip", status === t.key ? "border-fg bg-fg text-bg" : "border-border bg-surface")}
           >
-            {t.label} · {countOf(t.key)}
+            {d.admin.tabs[t.key]} · {countOf(t.key)}
           </Link>
         ))}
       </div>
 
       <div className="mt-4 space-y-3">
-        {startups.length === 0 && <div className="card p-6 text-center text-sm text-muted">Пусто 🎉</div>}
+        {startups.length === 0 && <div className="card p-6 text-center text-sm text-muted">{d.admin.empty} 🎉</div>}
         {startups.map((s) => (
           <div key={s.id} className="card flex flex-col gap-4 p-4 sm:flex-row sm:items-center">
             <div className="flex min-w-0 flex-1 items-start gap-3">
@@ -120,21 +127,21 @@ export default async function AdminPage({ searchParams }: { searchParams: { stat
                 </div>
                 <p className="mt-0.5 line-clamp-2 text-sm text-muted">{s.shortDesc}</p>
                 <div className="mt-1 text-xs text-muted">
-                  {displayName(s.founder)} · {formatRelative(s.createdAt)}
-                  {s.preOrderEnabled && ` · предзаказ ${formatPrice(s.preOrderPrice)}`}
-                  {s.tags.length > 0 && ` · ${s.tags.map((t) => t.name).join(", ")}`}
+                  {displayName(s.founder)} · {formatRelative(s.createdAt, locale)}
+                  {s.preOrderEnabled && ` · ${formatPrice(s.preOrderPrice, locale)}`}
+                  {s.tags.length > 0 && ` · ${s.tags.map((t) => tTag(d, t.name)).join(", ")}`}
                 </div>
               </div>
             </div>
             <div className="flex shrink-0 gap-2">
               {s.status !== "APPROVED" && (
                 <form action={setStartupStatus.bind(null, s.id, "APPROVED")}>
-                  <button className="btn-primary btn-sm" type="submit">Одобрить</button>
+                  <button className="btn-primary btn-sm" type="submit">{d.admin.approve}</button>
                 </form>
               )}
               {s.status !== "REJECTED" && (
                 <form action={setStartupStatus.bind(null, s.id, "REJECTED")}>
-                  <button className="btn-secondary btn-sm text-danger" type="submit">Отклонить</button>
+                  <button className="btn-secondary btn-sm text-danger" type="submit">{d.admin.reject}</button>
                 </form>
               )}
             </div>

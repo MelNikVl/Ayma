@@ -11,6 +11,8 @@ import { fetchRepoInfo, parseGithubUrl } from "@/lib/github";
 import { env } from "@/lib/env";
 import { sendTelegramMessage, escapeHtml } from "@/lib/telegram";
 import { canManageStartup } from "@/lib/access";
+import { refreshScores } from "@/lib/score";
+import { Prisma } from "@prisma/client";
 
 async function githubFields(githubUrl: string | null) {
   const ref = parseGithubUrl(githubUrl);
@@ -20,18 +22,18 @@ async function githubFields(githubUrl: string | null) {
 }
 
 function dataFromInput(input: StartupInput) {
-  const { tagIds: _tagIds, ...rest } = input;
+  const { tagIds: _tagIds, roadmap, ...rest } = input;
   void _tagIds;
-  return rest;
+  return { ...rest, roadmap: roadmap.length ? (roadmap as Prisma.InputJsonValue) : Prisma.DbNull };
 }
 
 export async function createStartup(_prev: FormState, formData: FormData): Promise<FormState> {
   const user = await getCurrentUser();
-  if (!user) return { ok: false, message: "Войдите через Telegram, чтобы добавить стартап" };
+  if (!user) return { ok: false, message: "loginRequired" };
 
   const parsed = parseStartupForm(formData);
   if (!parsed.success) {
-    return { ok: false, message: "Проверьте поля формы", fieldErrors: parsed.error.flatten().fieldErrors };
+    return { ok: false, message: "checkForm", fieldErrors: parsed.error.flatten().fieldErrors };
   }
   const input = parsed.data;
 
@@ -39,7 +41,7 @@ export async function createStartup(_prev: FormState, formData: FormData): Promi
     where: { founderId: user.id, createdAt: { gte: new Date(Date.now() - 24 * 3600 * 1000) } },
   });
   if (recent >= 5 && user.role !== "ADMIN") {
-    return { ok: false, message: "Слишком много стартапов за сутки. Попробуйте завтра." };
+    return { ok: false, message: "tooMany" };
   }
 
   const slug = await uniqueSlug(slugify(input.name));
@@ -55,8 +57,9 @@ export async function createStartup(_prev: FormState, formData: FormData): Promi
       tags: { connect: input.tagIds.map((id) => ({ id })) },
       members: { create: { userId: user.id, role: "OWNER" } },
     },
-    select: { slug: true },
+    select: { id: true, slug: true },
   });
+  await refreshScores(startup.id);
 
   if (status === "PENDING") {
     const admins = await prisma.user.findMany({ where: { role: "ADMIN" }, select: { telegramId: true } });
@@ -81,32 +84,33 @@ export async function updateStartup(
   formData: FormData,
 ): Promise<FormState> {
   const user = await getCurrentUser();
-  if (!user) return { ok: false, message: "Требуется вход" };
+  if (!user) return { ok: false, message: "loginRequired" };
 
   const existing = await prisma.startup.findUnique({
     where: { id: startupId },
     select: { founderId: true, githubUrl: true, status: true, slug: true },
   });
-  if (!existing) return { ok: false, message: "Стартап не найден" };
+  if (!existing) return { ok: false, message: "notFound" };
   if (!(await canManageStartup(user, startupId))) {
-    return { ok: false, message: "Редактировать карточку могут только участники команды проекта" };
+    return { ok: false, message: "noRights" };
   }
 
   const parsed = parseStartupForm(formData);
   if (!parsed.success) {
-    return { ok: false, message: "Проверьте поля формы", fieldErrors: parsed.error.flatten().fieldErrors };
+    return { ok: false, message: "checkForm", fieldErrors: parsed.error.flatten().fieldErrors };
   }
   const input = parsed.data;
 
   const github = input.githubUrl !== existing.githubUrl ? await githubFields(input.githubUrl) : {};
 
-  // логотип меняется отдельной загрузкой — поле формы его не трогает, если поля нет
-  const { logoUrl, ...rest } = dataFromInput(input);
+  // логотип и обложка меняются отдельной загрузкой — форма их не трогает, если полей нет
+  const { logoUrl, coverUrl, ...rest } = dataFromInput(input);
   await prisma.startup.update({
     where: { id: startupId },
     data: {
       ...rest,
       ...(formData.has("logoUrl") ? { logoUrl } : {}),
+      ...(formData.has("coverUrl") ? { coverUrl } : {}),
       ...github,
       // отклонённый стартап после правок снова уходит на модерацию
       status: existing.status === "REJECTED" ? "PENDING" : existing.status,
@@ -114,6 +118,7 @@ export async function updateStartup(
     },
   });
 
+  await refreshScores(startupId);
   revalidatePath("/");
   revalidatePath(`/startup/${existing.slug}`);
   revalidatePath("/dashboard");
@@ -130,6 +135,7 @@ export async function refreshGithub(startupId: string): Promise<void> {
   if (!startup || !(await canManageStartup(user, startupId))) return;
 
   await prisma.startup.update({ where: { id: startupId }, data: await githubFields(startup.githubUrl) });
+  await refreshScores(startupId);
   revalidatePath(`/startup/${startup.slug}`);
   revalidatePath("/dashboard");
   revalidatePath("/");

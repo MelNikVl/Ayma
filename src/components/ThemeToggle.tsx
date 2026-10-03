@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useI18n } from "@/i18n/client";
 import { MoonIcon, SunIcon } from "./icons";
 
 export function ThemeToggle() {
+  const { d } = useI18n();
   const [dark, setDark] = useState(false);
 
   useEffect(() => {
@@ -22,7 +24,7 @@ export function ThemeToggle() {
   }
 
   return (
-    <button type="button" onClick={toggle} className="btn-ghost px-2.5" aria-label="Переключить тему">
+    <button type="button" onClick={toggle} className="btn-ghost px-2.5" aria-label={d.nav.theme}>
       {dark ? <SunIcon className="h-4 w-4" /> : <MoonIcon className="h-4 w-4" />}
     </button>
   );
