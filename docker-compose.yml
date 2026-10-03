@@ -1,0 +1,50 @@
+# Запуск: cp .env.example .env && docker compose up -d --build
+# Приложение: http://localhost:3000
+
+services:
+  db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: aimarket
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aimarket}
+      POSTGRES_DB: aimarket
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aimarket -d aimarket"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Одноразовый сервис: применяет миграции и сид, затем завершается
+  migrate:
+    build:
+      context: .
+      target: builder
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://aimarket:${POSTGRES_PASSWORD:-aimarket}@db:5432/aimarket?schema=public
+      SEED_DEMO: ${SEED_DEMO:-true}
+    command: sh -c "npx prisma migrate deploy && npx prisma db seed"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  app:
+    build:
+      context: .
+      target: runner
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://aimarket:${POSTGRES_PASSWORD:-aimarket}@db:5432/aimarket?schema=public
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:

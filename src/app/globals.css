@@ -1,0 +1,114 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Цвета задаются RGB-триплетами, чтобы работала прозрачность Tailwind (bg-accent/10) */
+:root {
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --bg: 245 245 247; /* #F5F5F7 */
+  --surface: 255 255 255;
+  --surface-2: 240 240 243;
+  --border: 228 228 231;
+  --fg: 17 17 19;
+  --muted: 107 107 115;
+  --accent: 0 102 255; /* #0066FF */
+  --accent-hover: 0 82 214;
+  --success: 22 163 74;
+  --danger: 255 59 48; /* #FF3B30 */
+  --warning: 217 119 6;
+  color-scheme: light;
+}
+
+.dark {
+  --bg: 10 10 11;
+  --surface: 22 22 25;
+  --surface-2: 32 32 36;
+  --border: 44 44 50;
+  --fg: 240 240 243;
+  --muted: 150 150 160;
+  --accent: 51 133 255;
+  --accent-hover: 92 158 255;
+  --success: 34 197 94;
+  --danger: 255 85 75;
+  --warning: 245 158 11;
+  color-scheme: dark;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  @apply bg-bg text-fg antialiased;
+  font-family: var(--font-sans);
+}
+
+@layer components {
+  .card {
+    @apply rounded-card border border-border/60 bg-surface shadow-card;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 disabled:cursor-not-allowed disabled:opacity-60;
+  }
+  .btn-primary {
+    @apply btn bg-accent text-white hover:bg-accent-hover;
+  }
+  .btn-secondary {
+    @apply btn border border-border bg-surface text-fg hover:bg-surface-2;
+  }
+  .btn-ghost {
+    @apply btn text-fg hover:bg-surface-2;
+  }
+  .btn-sm {
+    @apply px-3 py-1.5 text-xs;
+  }
+  .input {
+    @apply w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-sm text-fg placeholder:text-muted/70 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20;
+  }
+  .label {
+    @apply mb-1.5 block text-sm font-medium text-fg;
+  }
+  .hint {
+    @apply mt-1 text-xs text-muted;
+  }
+  .error-text {
+    @apply mt-1 text-xs text-danger;
+  }
+  .chip {
+    @apply inline-flex shrink-0 items-center whitespace-nowrap rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Типографика для Markdown-описаний */
+.prose-md {
+  @apply text-[15px] leading-7 text-fg;
+}
+.prose-md h1 { @apply mb-3 mt-6 text-2xl font-bold; }
+.prose-md h2 { @apply mb-3 mt-6 text-xl font-bold; }
+.prose-md h3 { @apply mb-2 mt-5 text-lg font-semibold; }
+.prose-md p { @apply my-3; }
+.prose-md a { @apply text-accent underline-offset-2 hover:underline; }
+.prose-md ul { @apply my-3 list-disc pl-6; }
+.prose-md ol { @apply my-3 list-decimal pl-6; }
+.prose-md li { @apply my-1; }
+.prose-md code { @apply rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[13px]; }
+.prose-md pre { @apply my-4 overflow-x-auto rounded-lg bg-surface-2 p-4; }
+.prose-md pre code { @apply bg-transparent p-0; }
+.prose-md blockquote { @apply my-4 border-l-4 border-border pl-4 text-muted; }
+.prose-md table { @apply my-4 w-full border-collapse text-sm; }
+.prose-md th, .prose-md td { @apply border border-border px-3 py-2 text-left; }
+.prose-md img { @apply my-4 max-w-full rounded-lg; }
+.prose-md hr { @apply my-6 border-border; }
+.prose-md > :first-child { @apply mt-0; }
+.prose-md ul.contains-task-list { @apply list-none pl-1; }
+.prose-md .task-list-item input { @apply mr-2 align-middle accent-accent; }

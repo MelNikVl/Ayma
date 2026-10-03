@@ -1,0 +1,7 @@
+# Прод-оверлей: приложение берётся из готового образа GHCR (собирается в CI/CD),
+# миграции — из локальной сборки stage `builder`.
+# docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+services:
+  app:
+    image: ghcr.io/melnikvl/ayma:latest
+    pull_policy: always

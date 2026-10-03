@@ -1,0 +1,105 @@
+// AI Marketplace — схема БД
+// Документация: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id         String     @id @default(cuid())
+  telegramId BigInt     @unique
+  username   String?
+  firstName  String?
+  avatarUrl  String?
+  role       Role       @default(FOUNDER)
+  startups   Startup[]
+  preOrders  PreOrder[]
+  createdAt  DateTime   @default(now())
+}
+
+model Startup {
+  id        String @id @default(cuid())
+  slug      String @unique
+  founderId String
+  founder   User   @relation(fields: [founderId], references: [id])
+
+  name      String
+  shortDesc String  @db.VarChar(150)
+  fullDesc  String  @db.Text
+  logoUrl   String?
+  coverUrl  String?
+
+  githubUrl        String?
+  githubStars      Int       @default(0)
+  githubLastCommit DateTime?
+  demoUrl          String?
+  websiteUrl       String?
+
+  preOrderEnabled Boolean @default(false)
+  preOrderGoal    Int     @default(0) // цель сбора в ₸ (0 — без цели)
+  preOrderPrice   Int     @default(0) // цена одной единицы услуги в ₸
+  preOrderDesc    String? @db.Text // что именно получает спонсор
+  paymentUrl      String? // ссылка на оплату фаундера (Kaspi Pay, Stripe link и т.п.)
+
+  status    Status     @default(PENDING)
+  preOrders PreOrder[]
+  tags      Tag[]
+
+  viewsCount Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([slug])
+}
+
+model PreOrder {
+  id        String  @id @default(cuid())
+  startupId String
+  startup   Startup @relation(fields: [startupId], references: [id], onDelete: Cascade)
+  sponsorId String
+  sponsor   User    @relation(fields: [sponsorId], references: [id])
+
+  amount      Int // итоговая сумма в ₸ (preOrderPrice × quantity)
+  quantity    Int           @default(1)
+  status      PaymentStatus @default(PENDING)
+  paymentLink String?
+  contactInfo String? // Telegram/Email спонсора
+
+  createdAt DateTime @default(now())
+
+  @@index([startupId, status])
+  @@index([sponsorId])
+}
+
+model Tag {
+  id       String    @id @default(cuid())
+  name     String    @unique
+  color    String    @default("#0066FF")
+  startups Startup[]
+}
+
+enum Role {
+  FOUNDER
+  SPONSOR
+  ADMIN
+}
+
+enum Status {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  CANCELED
+}
