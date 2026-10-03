@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
+import { Analytics } from "@/components/Analytics";
+import { Suspense } from "react";
 import { I18nProvider } from "@/i18n/client";
 import { getI18n } from "@/i18n/server";
 import "./globals.css";
@@ -12,6 +14,7 @@ export function generateMetadata(): Metadata {
     title: { default: d.meta.title, template: "%s · AYMA" },
     description: d.meta.description,
     openGraph: { type: "website", locale: { ru: "ru_RU", kk: "kk_KZ", en: "en_US" }[locale], siteName: "AYMA" },
+    twitter: { card: "summary_large_image" },
   };
 }
 
@@ -37,6 +40,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <Header />
           <main className="flex-1">{children}</main>
           <Footer />
+          <Suspense fallback={null}>
+            <Analytics />
+          </Suspense>
         </I18nProvider>
       </body>
     </html>

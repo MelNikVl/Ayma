@@ -53,9 +53,12 @@ export default async function AdminPage({ searchParams }: { searchParams: { stat
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold tracking-tight">{d.admin.title}</h1>
+        <div className="flex gap-2">
+        <Link href="/admin/stats" className="btn-primary btn-sm">{d.stats.link}</Link>
         <form action={recomputeAllScores}>
           <button type="submit" className="btn-secondary btn-sm">{d.admin.recompute}</button>
         </form>
+        </div>
       </div>
       <p className="mt-1 text-sm text-muted">
         {fill(d.admin.paidStats, { n: stats._count, sum: formatPrice(stats._sum.amount ?? 0, locale) })}
