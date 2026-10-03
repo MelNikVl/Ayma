@@ -32,6 +32,16 @@ docker compose up -d --build
 
 Откройте http://localhost:3000. Сервис `migrate` применит миграции и зальёт теги + демо-стартапы (отключить: `SEED_DEMO=false`).
 
+## Запуск на Windows одной командой
+
+Нужен Docker Desktop. В PowerShell из папки проекта:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start.ps1
+```
+
+Скрипт создаст `.env` со случайным секретом и dev-входом, соберёт контейнеры и откроет http://localhost:3000.
+
 ## Локальная разработка
 
 ```bash

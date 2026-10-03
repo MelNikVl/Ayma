@@ -33,7 +33,9 @@ export const env = {
     return process.env.AUTO_APPROVE === "true";
   },
   get devLoginEnabled(): boolean {
-    return process.env.ENABLE_DEV_LOGIN === "true" && process.env.NODE_ENV !== "production";
+    if (process.env.ENABLE_DEV_LOGIN !== "true") return false;
+    // В production dev-вход разрешается только явным флагом — для локального превью в Docker.
+    return process.env.NODE_ENV !== "production" || process.env.DEV_LOGIN_ALLOW_PRODUCTION === "true";
   },
   get cronSecret(): string | undefined {
     return process.env.CRON_SECRET || undefined;
