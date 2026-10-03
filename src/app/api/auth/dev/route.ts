@@ -18,8 +18,10 @@ export async function POST(req: NextRequest) {
   const fakeId = String(9_000_000_000 + hash);
 
   const user = await upsertTelegramUser({ id: fakeId, username, firstName: username });
+  const { prisma } = await import("@/lib/prisma");
+  const githubLogin = String(form.get("githubLogin") || "").replace(/[^\w-]/g, "").slice(0, 39);
+  if (githubLogin) await prisma.user.update({ where: { id: user.id }, data: { githubLogin } });
   if (form.get("admin") === "on") {
-    const { prisma } = await import("@/lib/prisma");
     await prisma.user.update({ where: { id: user.id }, data: { role: "ADMIN" } });
   }
 

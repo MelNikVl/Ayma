@@ -10,6 +10,7 @@ import { uniqueSlug } from "@/lib/queries";
 import { fetchRepoInfo, parseGithubUrl } from "@/lib/github";
 import { env } from "@/lib/env";
 import { sendTelegramMessage, escapeHtml } from "@/lib/telegram";
+import { canManageStartup } from "@/lib/access";
 
 async function githubFields(githubUrl: string | null) {
   const ref = parseGithubUrl(githubUrl);
@@ -52,6 +53,7 @@ export async function createStartup(_prev: FormState, formData: FormData): Promi
       status,
       founderId: user.id,
       tags: { connect: input.tagIds.map((id) => ({ id })) },
+      members: { create: { userId: user.id, role: "OWNER" } },
     },
     select: { slug: true },
   });
@@ -86,8 +88,8 @@ export async function updateStartup(
     select: { founderId: true, githubUrl: true, status: true, slug: true },
   });
   if (!existing) return { ok: false, message: "Стартап не найден" };
-  if (existing.founderId !== user.id && user.role !== "ADMIN") {
-    return { ok: false, message: "Нет прав на редактирование" };
+  if (!(await canManageStartup(user, startupId))) {
+    return { ok: false, message: "Редактировать карточку могут только участники команды проекта" };
   }
 
   const parsed = parseStartupForm(formData);
@@ -98,10 +100,13 @@ export async function updateStartup(
 
   const github = input.githubUrl !== existing.githubUrl ? await githubFields(input.githubUrl) : {};
 
+  // логотип меняется отдельной загрузкой — поле формы его не трогает, если поля нет
+  const { logoUrl, ...rest } = dataFromInput(input);
   await prisma.startup.update({
     where: { id: startupId },
     data: {
-      ...dataFromInput(input),
+      ...rest,
+      ...(formData.has("logoUrl") ? { logoUrl } : {}),
       ...github,
       // отклонённый стартап после правок снова уходит на модерацию
       status: existing.status === "REJECTED" ? "PENDING" : existing.status,
@@ -122,10 +127,11 @@ export async function refreshGithub(startupId: string): Promise<void> {
     where: { id: startupId },
     select: { founderId: true, githubUrl: true, slug: true },
   });
-  if (!startup || (startup.founderId !== user.id && user.role !== "ADMIN")) return;
+  if (!startup || !(await canManageStartup(user, startupId))) return;
 
   await prisma.startup.update({ where: { id: startupId }, data: await githubFields(startup.githubUrl) });
   revalidatePath(`/startup/${startup.slug}`);
   revalidatePath("/dashboard");
   revalidatePath("/");
 }
+

@@ -8,6 +8,10 @@ export const getStartupBySlug = cache(async (slug: string) =>
     include: {
       tags: { orderBy: { name: "asc" } },
       founder: { select: { id: true, username: true, firstName: true, avatarUrl: true } },
+      members: {
+        orderBy: { createdAt: "asc" },
+        include: { user: { select: { id: true, username: true, firstName: true, avatarUrl: true, githubLogin: true } } },
+      },
     },
   }),
 );

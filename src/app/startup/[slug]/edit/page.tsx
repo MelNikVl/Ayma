@@ -2,8 +2,10 @@ import { notFound, redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
 import { listTags } from "@/lib/queries";
 import { updateStartup } from "@/app/actions/startup";
+import { LogoUploader } from "@/components/LogoUploader";
 import { StartupForm } from "@/components/StartupForm";
 import { getStartupBySlug } from "../data";
+import { canManageStartup } from "@/lib/access";
 
 export const metadata = { title: "Редактирование" };
 export const dynamic = "force-dynamic";
@@ -14,14 +16,18 @@ export default async function EditStartupPage({ params }: { params: { slug: stri
 
   const startup = await getStartupBySlug(params.slug);
   if (!startup) notFound();
-  if (startup.founderId !== user.id && user.role !== "ADMIN") notFound();
+  if (!(await canManageStartup(user, startup.id))) notFound();
 
   const tags = await listTags();
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
       <h1 className="mb-6 text-2xl font-bold tracking-tight sm:text-3xl">Редактирование: {startup.name}</h1>
+      <div className="mb-6">
+        <LogoUploader startupId={startup.id} name={startup.name} logoUrl={startup.logoUrl} />
+      </div>
       <StartupForm
+        hideLogoUrl
         action={updateStartup.bind(null, startup.id)}
         tags={tags}
         submitLabel="Сохранить изменения"

@@ -56,9 +56,10 @@ export function verifyTelegramAuth(params: URLSearchParams): TelegramAuthData | 
 }
 
 /** Отправка сообщения пользователю от имени бота. Ошибки не пробрасываются — уведомления best-effort. */
-export async function sendTelegramMessage(chatId: bigint | string, text: string): Promise<void> {
+export async function sendTelegramMessage(chatId: bigint | string | null | undefined, text: string): Promise<void> {
   const botToken = env.telegramBotToken;
-  if (!botToken) return;
+  // нет бота, нет Telegram у пользователя или служебный аккаунт (отрицательный id)
+  if (!botToken || chatId === null || chatId === undefined || BigInt(chatId) <= 0n) return;
   try {
     await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: "POST",

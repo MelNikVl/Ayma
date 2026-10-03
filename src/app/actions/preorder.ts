@@ -9,6 +9,7 @@ import { preOrderSchema, type FormState } from "@/lib/validation";
 import { sendTelegramMessage, escapeHtml } from "@/lib/telegram";
 import { formatPrice, displayName } from "@/lib/format";
 import { env } from "@/lib/env";
+import { canManageStartup, isMember, notifyTeam } from "@/lib/access";
 
 export async function createPreOrder(_prev: FormState, formData: FormData): Promise<FormState> {
   const user = await getCurrentUser();
@@ -36,14 +37,13 @@ export async function createPreOrder(_prev: FormState, formData: FormData): Prom
       preOrderEnabled: true,
       preOrderPrice: true,
       paymentUrl: true,
-      founder: { select: { telegramId: true } },
     },
   });
   if (!startup || startup.status !== "APPROVED" || !startup.preOrderEnabled || startup.preOrderPrice <= 0) {
     return { ok: false, message: "Предзаказ для этого стартапа недоступен" };
   }
-  if (startup.founderId === user.id) {
-    return { ok: false, message: "Нельзя оформить предзаказ у собственного стартапа" };
+  if (await isMember(user.id, startup.id)) {
+    return { ok: false, message: "Нельзя оформить предзаказ у собственного проекта" };
   }
 
   const pending = await prisma.preOrder.count({
@@ -69,8 +69,8 @@ export async function createPreOrder(_prev: FormState, formData: FormData): Prom
     select: { id: true },
   });
 
-  await sendTelegramMessage(
-    startup.founder.telegramId,
+  await notifyTeam(
+    startup.id,
     [
       `💸 Новый предзаказ: <b>${escapeHtml(startup.name)}</b>`,
       `Спонсор: ${escapeHtml(displayName(user))}`,
@@ -94,12 +94,13 @@ export async function setPreOrderStatus(preOrderId: string, status: PaymentStatu
     select: {
       status: true,
       amount: true,
-      startup: { select: { founderId: true, slug: true, name: true } },
+      startupId: true,
+      startup: { select: { slug: true, name: true } },
       sponsor: { select: { telegramId: true } },
     },
   });
   if (!order) return;
-  if (order.startup.founderId !== user.id && user.role !== "ADMIN") return;
+  if (!(await canManageStartup(user, order.startupId))) return;
   if (order.status === status) return;
 
   await prisma.preOrder.update({ where: { id: preOrderId }, data: { status } });

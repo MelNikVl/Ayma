@@ -12,15 +12,19 @@ datasource db {
 }
 
 model User {
-  id         String     @id @default(cuid())
-  telegramId BigInt     @unique
-  username   String?
-  firstName  String?
-  avatarUrl  String?
-  role       Role       @default(FOUNDER)
-  startups   Startup[]
-  preOrders  PreOrder[]
-  createdAt  DateTime   @default(now())
+  id          String     @id @default(cuid())
+  telegramId  BigInt?    @unique // вход через Telegram (необязателен при входе через GitHub)
+  githubId    Int?       @unique // вход через GitHub
+  githubLogin String?
+  username    String?
+  firstName   String?
+  avatarUrl   String?
+  role        Role       @default(FOUNDER)
+  startups    Startup[]
+  preOrders   PreOrder[]
+  memberships StartupMember[]
+  claims      ClaimRequest[]
+  createdAt   DateTime   @default(now())
 }
 
 model Startup {
@@ -47,9 +51,15 @@ model Startup {
   preOrderDesc    String? @db.Text // что именно получает спонсор
   paymentUrl      String? // ссылка на оплату фаундера (Kaspi Pay, Stripe link и т.п.)
 
-  status    Status     @default(PENDING)
+  // Данные репозитория (README, авторы, коммиты, структура) — для импортированных проектов
+  readme   String? @db.Text
+  repoMeta Json?
+
+  status    Status          @default(PENDING)
   preOrders PreOrder[]
   tags      Tag[]
+  members   StartupMember[]
+  claims    ClaimRequest[]
 
   viewsCount Int @default(0)
 
@@ -79,6 +89,35 @@ model PreOrder {
   @@index([sponsorId])
 }
 
+/// Участник команды проекта (до 3 человек). Участники управляют карточкой и видят предзаказы.
+model StartupMember {
+  id        String     @id @default(cuid())
+  startupId String
+  startup   Startup    @relation(fields: [startupId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      MemberRole @default(MEMBER)
+  createdAt DateTime   @default(now())
+
+  @@unique([startupId, userId])
+  @@index([userId])
+}
+
+/// Заявка «это мой проект», если автоматическая проверка по GitHub не подтвердила участие.
+model ClaimRequest {
+  id        String      @id @default(cuid())
+  startupId String
+  startup   Startup     @relation(fields: [startupId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message   String?     @db.VarChar(500)
+  status    ClaimStatus @default(PENDING)
+  createdAt DateTime    @default(now())
+
+  @@unique([startupId, userId])
+  @@index([status])
+}
+
 model Tag {
   id       String    @id @default(cuid())
   name     String    @unique
@@ -93,6 +132,17 @@ enum Role {
 }
 
 enum Status {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum MemberRole {
+  OWNER
+  MEMBER
+}
+
+enum ClaimStatus {
   PENDING
   APPROVED
   REJECTED

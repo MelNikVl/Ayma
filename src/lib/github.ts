@@ -105,3 +105,27 @@ export async function fetchRecentCommits(ref: RepoRef, limit = 5): Promise<Commi
     return [];
   }
 }
+
+/**
+ * Логины контрибьюторов репозитория (по коммитам, связанным с аккаунтами GitHub).
+ * null — проверить не удалось (лимит API, сеть, приватный репозиторий).
+ */
+export async function fetchContributorLogins(ref: RepoRef): Promise<string[] | null> {
+  const logins: string[] = [];
+  try {
+    for (let page = 1; page <= 3; page++) {
+      const res = await fetch(
+        `https://api.github.com/repos/${ref.owner}/${ref.repo}/contributors?per_page=100&page=${page}`,
+        { headers: headers(), cache: "no-store", signal: AbortSignal.timeout(8000) },
+      );
+      if (res.status === 204) break; // пустой репозиторий
+      if (!res.ok) return null;
+      const data = (await res.json()) as Array<{ login?: string; type?: string }>;
+      for (const c of data) if (c.login && c.type !== "Bot") logins.push(c.login.toLowerCase());
+      if (data.length < 100) break;
+    }
+    return logins;
+  } catch {
+    return null;
+  }
+}

@@ -44,12 +44,15 @@ export default async function SponsorPage({
                   Перейти к оплате
                 </a>
                 <p className="mt-3 text-xs text-muted">
-                  Оплата идёт напрямую фаундеру. После оплаты он подтвердит её — и вы появитесь в списке спонсоров.
+                  Оплата идёт напрямую команде проекта. После оплаты она подтвердит её — и вы появитесь в списке спонсоров.
                 </p>
               </>
             ) : (
               <p className="mt-6 rounded-lg bg-surface-2 px-4 py-3 text-sm">
-                Фаундер получил уведомление и свяжется с вами по контакту <b>{order.contactInfo}</b>, чтобы договориться об оплате.
+                {startup.members.length > 0
+                  ? "Команда проекта получила уведомление и свяжется с вами"
+                  : "Команда ещё не подтвердила проект на AYMA. Как только она заберёт проект, она увидит ваш предзаказ и свяжется с вами"}{" "}
+                по контакту <b>{order.contactInfo}</b>, чтобы договориться об оплате.
               </p>
             )}
             <div className="mt-6 flex justify-center gap-2">
@@ -70,7 +73,7 @@ export default async function SponsorPage({
     );
   }
 
-  if (startup.founderId === user.id) {
+  if (startup.members.some((m) => m.userId === user.id)) {
     return (
       <Shell startup={startup}>
         <p className="text-center text-sm text-muted">Это ваш стартап — оформить предзаказ у себя нельзя.</p>

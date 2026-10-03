@@ -48,11 +48,14 @@ export function StartupForm({
   tags,
   defaults,
   submitLabel,
+  hideLogoUrl = false,
 }: {
   action: Action;
   tags: { id: string; name: string; color: string }[];
   defaults: StartupFormDefaults;
   submitLabel: string;
+  /** На странице редактирования логотип загружается отдельным блоком */
+  hideLogoUrl?: boolean;
 }) {
   const [state, formAction] = useFormState(action, { ok: false });
   const [shortDesc, setShortDesc] = useState(defaults.shortDesc);
@@ -136,7 +139,9 @@ export function StartupForm({
       <section className="card space-y-5 p-5 sm:p-6">
         <h2 className="text-lg font-bold">Ссылки и медиа</h2>
         <div className="grid gap-5 sm:grid-cols-2">
-          <UrlField name="logoUrl" label="Логотип (URL картинки)" defaultValue={defaults.logoUrl} errors={e.logoUrl} hint="Квадрат, от 256×256" />
+          {!hideLogoUrl && (
+            <UrlField name="logoUrl" label="Логотип (URL картинки)" defaultValue={defaults.logoUrl} errors={e.logoUrl} hint="Квадрат, от 256×256. Загрузить файл можно после создания." />
+          )}
           <UrlField name="coverUrl" label="Обложка (URL картинки)" defaultValue={defaults.coverUrl} errors={e.coverUrl} hint="Широкая, 1200×400" />
           <UrlField name="githubUrl" label="GitHub-репозиторий" defaultValue={defaults.githubUrl} errors={e.githubUrl} placeholder="https://github.com/owner/repo" hint="Звёзды и дату коммита подтянем автоматически" />
           <UrlField name="demoUrl" label="Демо" defaultValue={defaults.demoUrl} errors={e.demoUrl} />

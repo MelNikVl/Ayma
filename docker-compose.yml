@@ -42,9 +42,12 @@ services:
       DATABASE_URL: postgresql://aimarket:${POSTGRES_PASSWORD:-aimarket}@db:5432/aimarket?schema=public
     ports:
       - "${APP_PORT:-3000}:3000"
+    volumes:
+      - uploads:/app/uploads # загруженные логотипы
     depends_on:
       migrate:
         condition: service_completed_successfully
 
 volumes:
   pgdata:
+  uploads:

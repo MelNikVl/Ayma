@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import type { Status } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
-import { sendTelegramMessage, escapeHtml } from "@/lib/telegram";
+import { escapeHtml } from "@/lib/telegram";
+import { notifyTeam } from "@/lib/access";
 import { env } from "@/lib/env";
 
 export async function setStartupStatus(startupId: string, status: Status): Promise<void> {
@@ -14,7 +15,7 @@ export async function setStartupStatus(startupId: string, status: Status): Promi
   const startup = await prisma.startup.update({
     where: { id: startupId },
     data: { status },
-    select: { slug: true, name: true, founder: { select: { telegramId: true } } },
+    select: { id: true, slug: true, name: true },
   });
 
   const text =
@@ -23,7 +24,7 @@ export async function setStartupStatus(startupId: string, status: Status): Promi
       : status === "REJECTED"
         ? `⚠️ Стартап <b>${escapeHtml(startup.name)}</b> не прошёл модерацию. Отредактируйте карточку — она снова уйдёт на проверку.`
         : null;
-  if (text) await sendTelegramMessage(startup.founder.telegramId, text);
+  if (text) await notifyTeam(startup.id, text);
 
   revalidatePath("/admin");
   revalidatePath("/");

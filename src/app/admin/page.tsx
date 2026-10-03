@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
 import { displayName, formatPrice, formatRelative } from "@/lib/format";
 import { setStartupStatus } from "@/app/actions/admin";
+import { approveClaim, rejectClaim } from "@/app/actions/team";
+import { Avatar } from "@/components/Avatar";
 import { StartupLogo } from "@/components/StartupLogo";
 import { StatusPill } from "@/components/StatusPill";
 import { cn } from "@/lib/cn";
@@ -24,7 +26,7 @@ export default async function AdminPage({ searchParams }: { searchParams: { stat
 
   const status: Status = tabs.some((t) => t.key === searchParams.status) ? (searchParams.status as Status) : "PENDING";
 
-  const [counts, startups, stats] = await Promise.all([
+  const [counts, startups, stats, claims] = await Promise.all([
     prisma.startup.groupBy({ by: ["status"], _count: true }),
     prisma.startup.findMany({
       where: { status },
@@ -33,6 +35,15 @@ export default async function AdminPage({ searchParams }: { searchParams: { stat
       include: { founder: { select: { username: true, firstName: true } }, tags: { select: { name: true } } },
     }),
     prisma.preOrder.aggregate({ where: { status: "PAID" }, _sum: { amount: true }, _count: true }),
+    prisma.claimRequest.findMany({
+      where: { status: "PENDING" },
+      orderBy: { createdAt: "asc" },
+      take: 100,
+      include: {
+        startup: { select: { name: true, slug: true, githubUrl: true, _count: { select: { members: true } } } },
+        user: { select: { username: true, firstName: true, avatarUrl: true, githubLogin: true } },
+      },
+    }),
   ]);
   const countOf = (s: Status) => counts.find((c) => c.status === s)?._count ?? 0;
 
@@ -42,6 +53,47 @@ export default async function AdminPage({ searchParams }: { searchParams: { stat
       <p className="mt-1 text-sm text-muted">
         Оплачено предзаказов: {stats._count} на {formatPrice(stats._sum.amount ?? 0)}
       </p>
+
+      {claims.length > 0 && (
+        <section className="mt-6">
+          <h2 className="mb-3 text-lg font-bold">Заявки «это мой проект» · {claims.length}</h2>
+          <div className="card divide-y divide-border/60">
+            {claims.map((c) => (
+              <div key={c.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
+                <div className="flex min-w-0 flex-1 items-center gap-3">
+                  <Avatar user={c.user} size={36} />
+                  <div className="min-w-0 text-sm">
+                    <div className="font-semibold">
+                      {c.user.firstName ?? displayName(c.user)}
+                      {c.user.githubLogin ? (
+                        <a href={`https://github.com/${c.user.githubLogin}`} target="_blank" rel="noreferrer" className="ml-1 font-normal text-accent">@{c.user.githubLogin}</a>
+                      ) : (
+                        <span className="ml-1 font-normal text-muted">без GitHub</span>
+                      )}
+                    </div>
+                    <div className="text-xs text-muted">
+                      → <Link href={`/startup/${c.startup.slug}`} className="hover:text-fg">{c.startup.name}</Link>
+                      {c.startup.githubUrl && (
+                        <> · <a href={`${c.startup.githubUrl}/graphs/contributors`} target="_blank" rel="noreferrer" className="hover:text-fg">контрибьюторы</a></>
+                      )}
+                      {" "}· в команде {c.startup._count.members} · {formatRelative(c.createdAt)}
+                    </div>
+                    {c.message && <p className="mt-1">«{c.message}»</p>}
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <form action={approveClaim.bind(null, c.id)}>
+                    <button className="btn-primary btn-sm" type="submit">Принять</button>
+                  </form>
+                  <form action={rejectClaim.bind(null, c.id)}>
+                    <button className="btn-secondary btn-sm" type="submit">Отклонить</button>
+                  </form>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <div className="mt-6 flex gap-2 overflow-x-auto no-scrollbar">
         {tabs.map((t) => (

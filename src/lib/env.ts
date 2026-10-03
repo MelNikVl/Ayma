@@ -26,6 +26,20 @@ export const env = {
         .filter(Boolean),
     );
   },
+  get githubClientId(): string | undefined {
+    return process.env.GITHUB_CLIENT_ID || undefined;
+  },
+  get githubClientSecret(): string | undefined {
+    return process.env.GITHUB_CLIENT_SECRET || undefined;
+  },
+  get adminGithubLogins(): Set<string> {
+    return new Set(
+      (process.env.ADMIN_GITHUB_LOGINS ?? "")
+        .split(",")
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean),
+    );
+  },
   get githubToken(): string | undefined {
     return process.env.GITHUB_TOKEN || undefined;
   },

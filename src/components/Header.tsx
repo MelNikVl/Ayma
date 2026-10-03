@@ -4,7 +4,7 @@ import { getCurrentUser } from "@/lib/session";
 import { SearchBar } from "./SearchBar";
 import { ThemeToggle } from "./ThemeToggle";
 import { UserMenu } from "./UserMenu";
-import { TelegramIcon, PlusIcon } from "./icons";
+import { GithubIcon, PlusIcon } from "./icons";
 
 export async function Header() {
   const user = await getCurrentUser();
@@ -38,10 +38,9 @@ export async function Header() {
           {user ? (
             <UserMenu user={user} />
           ) : (
-            <Link href="/login" className="btn bg-[#2AABEE] text-white hover:bg-[#229ED9]">
-              <TelegramIcon className="h-4 w-4" />
-              <span className="hidden sm:inline">Войти через Telegram</span>
-              <span className="sm:hidden">Войти</span>
+            <Link href="/login" className="btn-primary">
+              <GithubIcon className="h-4 w-4" />
+              Войти
             </Link>
           )}
         </nav>

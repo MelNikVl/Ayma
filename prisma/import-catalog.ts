@@ -1,8 +1,8 @@
 /**
  * Наполнение каталога реальными проектами:
  *  - удаляет демо-данные сида (стартапы demo_founder, демо-спонсоров);
- *  - импортирует проекты финала HackAlem.ai из «Атласа решений HackAlem»
- *    (https://govnejri.github.io/hackalem-atlas/, данные в prisma/data/hackalem-atlas.json);
+ *  - импортирует проекты финала HackAlem.ai (описания, README, авторы, коммиты, структура
+ *    репозиториев; данные в prisma/data/hackalem.json.gz);
  *  - добавляет проект Hatuli.
  *
  * Идемпотентен: повторный запуск обновляет карточки по slug.
@@ -10,6 +10,7 @@
  * В Docker: docker compose run --rm migrate npx tsx prisma/import-catalog.ts
  */
 import { readFileSync } from "fs";
+import { gunzipSync } from "zlib";
 import { join } from "path";
 import { PrismaClient, Prisma } from "@prisma/client";
 import { slugify } from "../src/lib/slug";
@@ -39,16 +40,23 @@ interface AtlasRepo {
   ma: string; // зрелость
   fc: string | null; // первый коммит
   lc: string | null; // последний коммит
+  rd: string; // README
+  rp: string | null; // путь к README
+  au: Array<[string, number]>; // авторы коммитов
+  cm: Array<[string, string, string]>; // коммиты
+  bn: string[]; // ветки
+  tree: string[]; // файлы
 }
 interface Atlas {
-  source: string;
   generated: string;
   tracks: Record<string, Track>;
   repos: AtlasRepo[];
 }
 
-const ATLAS_URL = "https://govnejri.github.io/hackalem-atlas/";
 const ORG = "BAITC-Hacks";
+const DEFAULT_PRICE = 10_000;
+const DEFAULT_PREORDER_DESC =
+  "Предзаказ консультации или доработки решения под вашу задачу. Формат, объём и сроки команда согласует с вами лично.";
 
 /** Категории атласа → теги каталога */
 const CATEGORY_TAGS: Record<string, { name: string; color: string }> = {
@@ -136,8 +144,7 @@ function fullDesc(r: AtlasRepo, track: Track | undefined): string {
   if (r.ll?.length) parts.push(`## Модели\n\n${codeList(r.ll)}`);
   parts.push(
     `---\n\nПроект создан за 5 часов на финале хакатона HackAlem.ai (23 сентября 2026, Астана). ` +
-      `Описание — из [Атласа решений HackAlem](${ATLAS_URL}#p-${r.id}), ` +
-      `код — [${ORG}/${r.n}](https://github.com/${ORG}/${r.n}).`,
+      `Код — [${ORG}/${r.n}](https://github.com/${ORG}/${r.n}).`,
   );
   return parts.join("\n\n");
 }
@@ -171,7 +178,7 @@ async function removeDemo() {
 
 async function importAtlas() {
   const atlas = JSON.parse(
-    readFileSync(join(__dirname, "data", "hackalem-atlas.json"), "utf8"),
+    gunzipSync(readFileSync(join(__dirname, "data", "hackalem.json.gz"))).toString("utf8"),
   ) as Atlas;
 
   // Системный пользователь-«владелец» импортированных карточек.
@@ -213,27 +220,58 @@ async function importAtlas() {
       if (t && tagIds.length < 5) tagIds.push(await tagId(t.name, t.color));
     }
 
-    const data = {
+    const repoMeta = {
+      team: r.t,
+      hackathon: track ? { industry: track.industry, partner: track.partner, task: track.task } : null,
+      maturity: MATURITY[r.ma] ?? r.ma,
+      readmePath: r.rp,
+      authors: r.au,
+      commits: r.cm,
+      branches: r.bn,
+      tree: r.tree,
+    };
+    // Данные репозитория обновляем всегда
+    const repoData = {
+      readme: r.rd?.trim() ? r.rd : null,
+      repoMeta,
+      githubUrl: `https://github.com/${ORG}/${r.n}`,
+      githubLastCommit: atlasDate(r.lc),
+      websiteUrl: null,
+    };
+    // Карточку (название, описание, цену, теги) — только пока команда не забрала проект
+    const cardData = {
       name,
       shortDesc: shortDesc(r.su),
       fullDesc: fullDesc(r, track),
-      githubUrl: `https://github.com/${ORG}/${r.n}`,
-      githubLastCommit: atlasDate(r.lc),
-      websiteUrl: `${ATLAS_URL}#p-${r.id}`,
       status: "APPROVED" as const,
-      preOrderEnabled: false,
-      founderId: owner.id,
+      preOrderEnabled: true,
+      preOrderPrice: DEFAULT_PRICE,
+      preOrderDesc: DEFAULT_PREORDER_DESC,
     };
-    await prisma.startup.upsert({
+
+    const existing = await prisma.startup.findUnique({
       where: { slug },
-      create: {
-        ...data,
-        slug,
-        createdAt: atlasDate(r.fc) ?? new Date("2026-09-23T10:00:00+05:00"),
-        tags: { connect: tagIds.map((id) => ({ id })) },
-      },
-      update: { ...data, tags: { set: tagIds.map((id) => ({ id })) } },
+      select: { id: true, _count: { select: { members: true } } },
     });
+    if (!existing) {
+      await prisma.startup.create({
+        data: {
+          ...repoData,
+          ...cardData,
+          slug,
+          founderId: owner.id,
+          createdAt: atlasDate(r.fc) ?? new Date("2026-09-23T10:00:00+05:00"),
+          tags: { connect: tagIds.map((id) => ({ id })) },
+        },
+      });
+    } else if (existing._count.members === 0) {
+      await prisma.startup.update({
+        where: { id: existing.id },
+        data: { ...repoData, ...cardData, tags: { set: tagIds.map((id) => ({ id })) } },
+      });
+    } else {
+      await prisma.startup.update({ where: { id: existing.id }, data: repoData });
+    }
     if (++n % 100 === 0) console.log(`  … ${n}/${atlas.repos.length}`);
   }
   console.log(`✓ Импортировано проектов HackAlem: ${n}`);
@@ -258,15 +296,23 @@ const HATULI_DESC = `Аналитическая платформа для инв
 \`Python\` · \`FastAPI\` · \`PostgreSQL\` · \`systemd\` · \`Playwright\` · \`SigLIP\` · \`OpenCV\` · \`DeepSeek\` · \`OSRM\` · \`H3\``;
 
 async function importHatuli() {
-  // Владелец — пользователь @nik, если он уже входил; иначе плейсхолдер,
-  // которого администратор потом заменит на реальный Telegram-аккаунт.
-  const owner =
-    (await prisma.user.findFirst({ where: { username: { in: ["nik", "MelNikVl", "melnikvl"] } } })) ??
-    (await prisma.user.upsert({
-      where: { telegramId: BigInt(-1002) },
-      create: { telegramId: BigInt(-1002), firstName: "Nikolay Melnik", username: "MelNikVl" },
-      update: {},
-    }));
+  const existing = await prisma.startup.findUnique({
+    where: { slug: "hatuli" },
+    select: { id: true, _count: { select: { members: true } } },
+  });
+  // Проект уже забрал владелец — карточку не трогаем
+  if (existing && existing._count.members > 0) {
+    console.log("✓ Hatuli: уже у команды, пропускаем");
+    return;
+  }
+
+  // Пока никто не забрал — «владелец» служебный. Автор забирает проект кнопкой
+  // «Это мой проект» после входа через GitHub (MelNikVl — контрибьютор репозитория).
+  const placeholder = await prisma.user.upsert({
+    where: { telegramId: BigInt(-1002) },
+    create: { telegramId: BigInt(-1002), firstName: "Hatuli" },
+    update: {},
+  });
 
   const tags = await Promise.all([
     ensureTag("Недвижимость", "#B45309"),
@@ -284,7 +330,10 @@ async function importHatuli() {
     websiteUrl: "https://hatuli.ai-groundtruth.com",
     demoUrl: "https://hatuli.ai-groundtruth.com",
     status: "APPROVED",
-    founderId: owner.id,
+    founderId: placeholder.id,
+    preOrderEnabled: true,
+    preOrderPrice: DEFAULT_PRICE,
+    preOrderDesc: "Предзаказ доступа к аналитике Hatuli или персонального разбора квартиры перед покупкой.",
   };
   await prisma.startup.upsert({
     where: { slug: "hatuli" },
@@ -296,7 +345,7 @@ async function importHatuli() {
     },
     update: { ...data, tags: { set: tags.map((t) => ({ id: t.id })) } },
   });
-  console.log(`✓ Hatuli (владелец: ${owner.username ?? owner.firstName})`);
+  console.log("✓ Hatuli");
 }
 
 async function main() {

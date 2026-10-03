@@ -10,7 +10,7 @@ export const SESSION_COOKIE = "aim_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 дней
 
 /** Безопасное для передачи в клиентские компоненты представление пользователя (без BigInt). */
-export type SessionUser = Pick<User, "id" | "username" | "firstName" | "avatarUrl" | "role">;
+export type SessionUser = Pick<User, "id" | "username" | "firstName" | "avatarUrl" | "role" | "githubLogin">;
 
 export async function createSessionToken(userId: string): Promise<string> {
   return new SignJWT({})
@@ -48,7 +48,7 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
   if (!userId) return null;
   return prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, username: true, firstName: true, avatarUrl: true, role: true },
+    select: { id: true, username: true, firstName: true, avatarUrl: true, role: true, githubLogin: true },
   });
 });
 
