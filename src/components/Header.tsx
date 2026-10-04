@@ -7,7 +7,7 @@ import { ThemeToggle } from "./ThemeToggle";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { UserMenu } from "./UserMenu";
 import { GithubIcon } from "./icons";
-import { CampAddButton, CampLinks, CampSwitch } from "./CampNav";
+import { SectionAddButton, SectionSubNav, SectionTabs } from "./CampNav";
 
 export async function Header() {
   const [user, { d }] = await Promise.all([getCurrentUser(), Promise.resolve(getI18n())]);
@@ -20,11 +20,9 @@ export async function Header() {
           <span className="text-[18px] tracking-tight">AYMA</span>
         </Link>
 
-        <CampSwitch className="hidden md:flex" />
-
-        <nav className="hidden items-center gap-0.5 text-sm font-medium lg:flex">
-          <CampLinks />
-        </nav>
+        <Suspense fallback={null}>
+          <SectionTabs className="hidden md:flex" />
+        </Suspense>
 
         <div className="order-last w-full md:order-none md:mx-4 md:w-auto md:flex-1">
           <Suspense fallback={<div className="h-10 rounded-full bg-surface-2" />}>
@@ -35,7 +33,9 @@ export async function Header() {
         <div className="ml-auto flex items-center gap-1 md:ml-0">
           <LanguageSwitcher />
           <ThemeToggle />
-          <CampAddButton />
+          <Suspense fallback={null}>
+            <SectionAddButton />
+          </Suspense>
           {user ? (
             <UserMenu user={user} />
           ) : (
@@ -46,12 +46,16 @@ export async function Header() {
           )}
         </div>
 
-        {/* Мобильная навигация */}
-        <nav className="order-last -mx-1 flex w-full items-center gap-1 overflow-x-auto text-sm font-medium no-scrollbar lg:hidden">
-          <CampSwitch className="md:hidden" />
-          <CampLinks mobile />
-        </nav>
+        {/* Мобильная навигация: три раздела */}
+        <div className="order-[90] w-full md:hidden">
+          <Suspense fallback={null}>
+            <SectionTabs compact className="w-full justify-between [&>a]:flex-1 [&>a]:justify-center" />
+          </Suspense>
+        </div>
       </div>
+      <Suspense fallback={null}>
+        <SectionSubNav />
+      </Suspense>
     </header>
   );
 }
