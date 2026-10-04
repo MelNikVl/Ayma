@@ -14,6 +14,7 @@ import { ScoreBreakdown } from "@/components/ScoreBreakdown";
 import { StartupCard } from "@/components/StartupCard";
 import { CollabForm } from "@/components/CollabForm";
 import { CollabBadge } from "@/components/Badges";
+import { DevLinks } from "@/components/DevLinks";
 import { ExternalIcon, GithubIcon } from "@/components/icons";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +23,7 @@ const findUser = cache(async (handle: string) => {
   const h = decodeURIComponent(handle);
   const select = {
     id: true, username: true, firstName: true, avatarUrl: true, githubLogin: true, bio: true, skills: true,
-    contactUrl: true, openToCollab: true, score: true, scoreData: true, createdAt: true,
+    contactUrl: true, linkedinUrl: true, resumeUrl: true, openToCollab: true, score: true, scoreData: true, createdAt: true,
   } as const;
   return (
     (await prisma.user.findFirst({ where: { githubLogin: { equals: h, mode: "insensitive" } }, select })) ??
@@ -92,10 +93,15 @@ export default async function ProfilePage({ params }: { params: { handle: string
                 ))}
               </div>
             )}
-            {u.contactUrl && (
-              <a href={u.contactUrl} target="_blank" rel="noopener noreferrer nofollow" className="btn-secondary btn-sm mt-4">
-                {d.profile.contact} <ExternalIcon className="h-3.5 w-3.5" />
-              </a>
+            {(u.contactUrl || u.linkedinUrl || u.resumeUrl) && (
+              <div className="mt-4 flex flex-wrap gap-2">
+                {u.contactUrl && (
+                  <a href={u.contactUrl} target="_blank" rel="noopener noreferrer nofollow" className="btn-secondary btn-sm">
+                    {d.profile.contact} <ExternalIcon className="h-3.5 w-3.5" />
+                  </a>
+                )}
+                <DevLinks linkedinUrl={u.linkedinUrl} resumeUrl={u.resumeUrl} size="md" className="gap-2" />
+              </div>
             )}
           </div>
         </div>

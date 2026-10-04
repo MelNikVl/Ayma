@@ -22,6 +22,7 @@ import { ProgressBar } from "@/components/ProgressBar";
 import { Avatar } from "@/components/Avatar";
 import { VoteButton } from "@/components/VoteButton";
 import { CryptoSponsor } from "@/components/CryptoSponsor";
+import { DevLinks } from "@/components/DevLinks";
 import { chainById, formatUsdt, shortAddress } from "@/lib/crypto";
 import { ScoreBreakdown } from "@/components/ScoreBreakdown";
 import { Roadmap, parseRoadmap } from "@/components/Roadmap";
@@ -481,7 +482,7 @@ export default async function StartupPage({ params, searchParams }: Props) {
       ) : canManage ? (
         <div className="card border-dashed p-5 text-sm sm:p-6">
           <p className="text-muted">{d.crypto.noWalletTeam}</p>
-          <Link href={`/startup/${startup.slug}/edit`} className="mt-3 inline-block font-semibold text-accent hover:underline">
+          <Link href={`/startup/${startup.slug}/edit?tab=business#walletAddress`} className="mt-3 inline-block font-semibold text-accent hover:underline">
             {d.crypto.addWallet} →
           </Link>
         </div>
@@ -555,8 +556,8 @@ export default async function StartupPage({ params, searchParams }: Props) {
         {startup.members.length > 0 ? (
           <ul className="space-y-2">
             {startup.members.map((m) => (
-              <li key={m.id}>
-                <Link href={profileHref(m.user)} className="flex items-center gap-2 rounded-lg p-1 text-sm hover:bg-surface-2">
+              <li key={m.id} className="flex items-center gap-1">
+                <Link href={profileHref(m.user)} className="flex min-w-0 flex-1 items-center gap-2 rounded-lg p-1 text-sm hover:bg-surface-2">
                   <Avatar user={m.user} size={30} />
                   <span className="min-w-0 flex-1 truncate">
                     {m.user.firstName ?? displayName(m.user)}
@@ -564,6 +565,7 @@ export default async function StartupPage({ params, searchParams }: Props) {
                   </span>
                   {m.role === "OWNER" && <span className="text-[11px] text-muted">{d.startup.owner}</span>}
                 </Link>
+                <DevLinks linkedinUrl={m.user.linkedinUrl} resumeUrl={m.user.resumeUrl} />
               </li>
             ))}
           </ul>

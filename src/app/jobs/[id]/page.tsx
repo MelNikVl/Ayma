@@ -12,6 +12,7 @@ import { decideJobResponse, setJobStatus, toggleJobHidden, withdrawJobResponse }
 import { JobStatusPill, jobBudget } from "@/components/JobCard";
 import { JobRespondForm } from "@/components/JobRespondForm";
 import { Avatar } from "@/components/Avatar";
+import { DevLinks } from "@/components/DevLinks";
 import { StartupLogo } from "@/components/StartupLogo";
 import { ScorePill } from "@/components/ScoreBadge";
 import { SubmitButton } from "@/components/SubmitButton";
@@ -148,6 +149,7 @@ export default async function JobPage({ params, searchParams }: { params: { id: 
                               {r.user.bio && <span className="block truncate text-xs text-muted">{r.user.bio}</span>}
                             </span>
                           </Link>
+                          <DevLinks linkedinUrl={r.user.linkedinUrl} resumeUrl={r.user.resumeUrl} />
                           <div className="text-right text-sm">
                             {r.price ? <div className="font-bold tabular-nums">{formatPrice(r.price, locale)}</div> : null}
                             {r.days ? <div className="text-xs text-muted">{fill(d.jobs.days, { n: r.days })}</div> : null}

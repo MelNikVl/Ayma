@@ -194,6 +194,8 @@ export function computeUserScore(u: {
   avatarUrl: string | null;
   contactUrl: string | null;
   githubLogin: string | null;
+  linkedinUrl?: string | null;
+  resumeUrl?: string | null;
 }): { total: number; parts: UserScoreParts } {
   const sorted = [...u.projectScores].sort((a, b) => b - a);
   const top = sorted[0] ?? 0;
@@ -206,7 +208,9 @@ export function computeUserScore(u: {
     (u.skills.length >= 3 ? 3 : u.skills.length > 0 ? 1 : 0) +
     (u.avatarUrl ? 2 : 0) +
     (u.contactUrl ? 3 : 0) +
-    (u.githubLogin ? 4 : 0);
+    (u.githubLogin ? 4 : 0) +
+    (u.linkedinUrl ? 2 : 0) +
+    (u.resumeUrl ? 2 : 0);
   const parts: UserScoreParts = {
     projects: r1(Math.min(USER_SCORE_MAX.projects, projects)),
     support: r1(Math.min(USER_SCORE_MAX.support, support)),
@@ -226,6 +230,8 @@ export async function recomputeUserScores(userIds?: string[]): Promise<number> {
       avatarUrl: true,
       contactUrl: true,
       githubLogin: true,
+      linkedinUrl: true,
+      resumeUrl: true,
       openToCollab: true,
       memberships: { select: { startup: { select: { id: true, score: true } } } },
     },

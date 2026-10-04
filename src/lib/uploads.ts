@@ -7,6 +7,7 @@ import { randomBytes } from "crypto";
 export const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(process.cwd(), "uploads");
 export const UPLOAD_URL_PREFIX = "/uploads/";
 export const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
+export const MAX_PDF_BYTES = 5 * 1024 * 1024;
 
 export const IMAGE_TYPES: Record<string, string> = {
   png: "image/png",
@@ -14,6 +15,14 @@ export const IMAGE_TYPES: Record<string, string> = {
   webp: "image/webp",
   gif: "image/gif",
 };
+
+/** Все типы, которые отдаёт /uploads/[file] */
+export const UPLOAD_TYPES: Record<string, string> = { ...IMAGE_TYPES, pdf: "application/pdf" };
+
+/** PDF по сигнатуре «%PDF-» */
+export function isPdf(buf: Buffer): boolean {
+  return buf.length > 8 && buf.toString("ascii", 0, 5) === "%PDF-";
+}
 
 /** Тип картинки по сигнатуре файла (расширению и Content-Type клиента не доверяем). SVG не принимаем. */
 export function detectImageType(buf: Buffer): keyof typeof IMAGE_TYPES | null {
@@ -36,6 +45,6 @@ export async function saveImage(prefix: string, buf: Buffer, ext: string): Promi
 export async function removeUploaded(url: string | null | undefined): Promise<void> {
   if (!url?.startsWith(UPLOAD_URL_PREFIX)) return;
   const name = url.slice(UPLOAD_URL_PREFIX.length);
-  if (!/^[\w-]+\.(png|jpg|webp|gif)$/.test(name)) return;
+  if (!/^[\w-]+\.(png|jpg|webp|gif|pdf)$/.test(name)) return;
   await unlink(path.join(UPLOAD_DIR, name)).catch(() => undefined);
 }

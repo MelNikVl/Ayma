@@ -25,6 +25,9 @@ model User {
   bio          String?  @db.VarChar(300)
   skills       String[]
   contactUrl   String? // Telegram, LinkedIn, сайт
+  linkedinUrl  String?
+  resumeUrl    String? // загруженный PDF (/uploads/…)
+  resumeName   String?  @db.VarChar(120) // исходное имя файла
   openToCollab Boolean  @default(false)
   score        Int      @default(0) // рейтинг разработчика 0–100
   scoreData    Json?

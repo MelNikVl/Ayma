@@ -10,7 +10,7 @@ import { FormMessage } from "./FormMessage";
 export function ProfileForm({
   defaults,
 }: {
-  defaults: { firstName: string; bio: string; skills: string; contactUrl: string; openToCollab: boolean };
+  defaults: { firstName: string; bio: string; skills: string; contactUrl: string; linkedinUrl: string; openToCollab: boolean };
 }) {
   const { d } = useI18n();
   const [state, action] = useFormState(updateProfile, { ok: false });
@@ -30,6 +30,11 @@ export function ProfileForm({
           <FieldError errors={e.contactUrl} />
         </label>
       </div>
+      <label className="block">
+        <span className="label">LinkedIn</span>
+        <input name="linkedinUrl" type="url" defaultValue={defaults.linkedinUrl} className="input" placeholder="https://www.linkedin.com/in/…" />
+        <FieldError errors={e.linkedinUrl} />
+      </label>
       <label className="block">
         <span className="label">{d.dashboard.bio}</span>
         <textarea name="bio" defaultValue={defaults.bio} rows={3} maxLength={300} className="input" placeholder={d.dashboard.bioPh} />

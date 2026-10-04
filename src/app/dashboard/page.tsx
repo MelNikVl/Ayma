@@ -17,6 +17,7 @@ import { StatusPill } from "@/components/StatusPill";
 import { Avatar } from "@/components/Avatar";
 import { ScorePill, ScoreRing } from "@/components/ScoreBadge";
 import { ProfileForm } from "@/components/ProfileForm";
+import { ResumeUploader } from "@/components/ResumeUploader";
 import { profileHref } from "@/components/UserMenu";
 import { GithubIcon } from "@/components/icons";
 
@@ -34,7 +35,7 @@ export default async function DashboardPage() {
   const [me, memberships] = await Promise.all([
     prisma.user.findUniqueOrThrow({
       where: { id: user.id },
-      select: { bio: true, skills: true, contactUrl: true, openToCollab: true, score: true, firstName: true },
+      select: { bio: true, skills: true, contactUrl: true, linkedinUrl: true, resumeUrl: true, resumeName: true, openToCollab: true, score: true, firstName: true },
     }),
     prisma.startupMember.findMany({
       where: { userId: user.id },
@@ -464,9 +465,13 @@ export default async function DashboardPage() {
             bio: me.bio ?? "",
             skills: me.skills.join(", "),
             contactUrl: me.contactUrl ?? "",
+            linkedinUrl: me.linkedinUrl ?? "",
             openToCollab: me.openToCollab,
           }}
         />
+        <div className="mt-5">
+          <ResumeUploader url={me.resumeUrl} name={me.resumeName} />
+        </div>
       </section>
     </div>
   );

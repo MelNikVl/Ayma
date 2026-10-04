@@ -98,7 +98,7 @@ const THEME_SWATCH: Record<string, [string, string]> = {
   steppe: ["#EFF6FC", "#0284C7"],
 };
 
-type Tab = "main" | "business" | "api" | "design";
+export type Tab = "main" | "business" | "api" | "design";
 const TAB_FIELDS: Record<Tab, string[]> = {
   main: ["name", "shortDesc", "fullDesc", "tagIds", "logoUrl", "coverUrl", "githubUrl", "demoUrl", "websiteUrl", "preOrderPrice", "preOrderGoal", "preOrderDesc", "paymentUrl"],
   business: ["roadmap", "advantages", "competitors", "implPrice", "implDays", "fundingNeed", "fundingNeedDesc", "walletAddress"],
@@ -117,6 +117,7 @@ export function StartupForm({
   defaults,
   submitLabel,
   hideImageUrls = false,
+  initialTab = "main",
 }: {
   action: Action;
   tags: { id: string; name: string; color: string }[];
@@ -124,10 +125,11 @@ export function StartupForm({
   submitLabel: string;
   /** На странице редактирования логотип и обложка загружаются отдельным блоком */
   hideImageUrls?: boolean;
+  initialTab?: Tab;
 }) {
   const { d } = useI18n();
   const [state, formAction] = useFormState(action, { ok: false });
-  const [tab, setTab] = useState<Tab>("main");
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [shortDesc, setShortDesc] = useState(defaults.shortDesc);
   const [selected, setSelected] = useState<string[]>(defaults.tagIds);
   const [preorder, setPreorder] = useState(defaults.preOrderEnabled);

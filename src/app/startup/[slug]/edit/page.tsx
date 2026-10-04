@@ -21,7 +21,7 @@ function pick<T extends string>(value: string, allowed: readonly T[], fallback: 
   return (allowed as readonly string[]).includes(value) ? (value as T) : fallback;
 }
 
-export default async function EditStartupPage({ params }: { params: { slug: string } }) {
+export default async function EditStartupPage({ params, searchParams }: { params: { slug: string }; searchParams?: { tab?: string } }) {
   const { d } = getI18n();
   const user = await getCurrentUser();
   if (!user) redirect(`/login?next=/startup/${params.slug}/edit`);
@@ -39,6 +39,7 @@ export default async function EditStartupPage({ params }: { params: { slug: stri
       <ImageUploader startupId={startup.id} name={startup.name} logoUrl={startup.logoUrl} coverUrl={startup.coverUrl} />
       <StartupForm
         hideImageUrls
+        initialTab={(["main", "business", "api", "design"] as const).find((t) => t === searchParams?.tab) ?? "main"}
         action={updateStartup.bind(null, startup.id)}
         tags={tags}
         submitLabel={d.form.submitEdit}

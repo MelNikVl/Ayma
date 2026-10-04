@@ -275,6 +275,14 @@ const en: Dict = {
     jobsBanner: "Open jobs from companies",
     noFee: "Free for both sides. You agree on payment and contract directly.",
   },
+  resume: {
+    title: "Résumé (PDF)",
+    hint: "Up to 5 MB. Visible to project visitors and customers on the job board.",
+    upload: "Upload PDF",
+    replace: "Replace",
+    remove: "Remove",
+    open: "Résumé",
+  },
   row: {
     thisWeek: "this week",
     collab: "Collabs",
@@ -796,6 +804,7 @@ const en: Dict = {
     ],
   },
   errors: {
+    linkedin: "Must be a linkedin.com link",
     min5: "At least 5 characters",
     min20: "At least 20 characters",
     max3: "No more than three",
@@ -823,6 +832,8 @@ const en: Dict = {
     message: "Write a message (10+ characters)",
   },
   msg: {
+    pdfTooBig: "File is larger than 5 MB",
+    pdfOnly: "Please upload a PDF file",
     jobLimit: "You can keep at most 5 open tasks. Close finished ones.",
     jobSelf: "You can’t respond to your own task",
     jobClosed: "This task no longer accepts responses",

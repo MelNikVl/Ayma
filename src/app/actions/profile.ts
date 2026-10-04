@@ -15,6 +15,7 @@ export async function updateProfile(_prev: FormState, formData: FormData): Promi
     bio: formData.get("bio") ?? "",
     skills: formData.get("skills") ?? "",
     contactUrl: formData.get("contactUrl") ?? "",
+    linkedinUrl: formData.get("linkedinUrl") ?? "",
     openToCollab: formData.get("openToCollab") === "on",
   });
   if (!parsed.success) {
@@ -25,5 +26,6 @@ export async function updateProfile(_prev: FormState, formData: FormData): Promi
   revalidatePath("/dashboard");
   revalidatePath("/u/[handle]", "page");
   revalidatePath("/collabs");
+  revalidatePath("/startup/[slug]", "page");
   return { ok: true, message: "saved" };
 }

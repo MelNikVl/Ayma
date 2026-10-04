@@ -10,7 +10,11 @@ export const getStartupBySlug = cache(async (slug: string) =>
       founder: { select: { id: true, username: true, firstName: true, avatarUrl: true } },
       members: {
         orderBy: { createdAt: "asc" },
-        include: { user: { select: { id: true, username: true, firstName: true, avatarUrl: true, githubLogin: true } } },
+        include: {
+          user: {
+            select: { id: true, username: true, firstName: true, avatarUrl: true, githubLogin: true, linkedinUrl: true, resumeUrl: true },
+          },
+        },
       },
     },
   }),

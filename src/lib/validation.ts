@@ -190,6 +190,10 @@ export const profileSchema = z.object({
       ).slice(0, 15),
     ),
   contactUrl: optionalUrl,
+  linkedinUrl: optionalUrl.refine(
+    (v) => v === null || /^https?:\/\/([\w-]+\.)?linkedin\.com\//i.test(v),
+    "linkedin",
+  ),
   openToCollab: z.boolean(),
 });
 

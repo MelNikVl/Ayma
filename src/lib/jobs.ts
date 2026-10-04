@@ -76,6 +76,8 @@ export async function getJob(id: string) {
               bio: true,
               skills: true,
               contactUrl: true,
+              linkedinUrl: true,
+              resumeUrl: true,
             },
           },
           startup: { select: { id: true, slug: true, name: true, logoUrl: true, score: true } },
