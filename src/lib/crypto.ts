@@ -21,7 +21,7 @@ export const CHAINS: ChainConfig[] = [
     hex: "0x89",
     name: "Polygon",
     short: "Polygon",
-    rpcs: ["https://polygon-rpc.com", "https://polygon-bor-rpc.publicnode.com"],
+    rpcs: ["https://polygon-bor-rpc.publicnode.com", "https://polygon.drpc.org"],
     explorer: "https://polygonscan.com",
     native: { name: "POL", symbol: "POL", decimals: 18 },
     usdt: { address: "0xc2132D05D31c914a87C6611C10748AEb04B58e8F", decimals: 6 },
