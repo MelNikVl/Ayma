@@ -249,7 +249,7 @@ const en: Dict = {
     campDev: "For developers",
     campBiz: "For companies",
     heroKicker: "For companies",
-    heroTitle: "AI developers for your task",
+    heroTitle: "AI on demand",
     heroText: "Describe what you want to automate. Teams behind {n} AI projects from Kazakhstan and the CIS will respond with a price and timeline — free, no commission.",
     ctaPost: "Post a task",
     ctaBrowse: "Ready-made solutions",
