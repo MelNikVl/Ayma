@@ -20,6 +20,7 @@ import { FieldError } from "./FieldError";
 import { FormMessage } from "./FormMessage";
 
 type Action = (prev: FormState, formData: FormData) => Promise<FormState>;
+export type FundRow = { item: string; amount: string };
 
 export interface StartupFormDefaults {
   name: string;
@@ -43,7 +44,14 @@ export interface StartupFormDefaults {
   implDays: string;
   fundingNeed: string;
   fundingNeedDesc: string;
-  walletAddress: string;
+  fundingBreakdown: FundRow[];
+  fundingContact: string;
+  buildMonths: string;
+  killerFeatures: string;
+  secretSauce: string;
+  teamInfo: string;
+  hiring: string;
+  compensation: string;
   apiStatus: (typeof API_STATUSES)[number];
   apiTypes: string[];
   apiDocsUrl: string;
@@ -77,7 +85,14 @@ export const emptyStartupDefaults: StartupFormDefaults = {
   implDays: "",
   fundingNeed: "",
   fundingNeedDesc: "",
-  walletAddress: "",
+  fundingBreakdown: [],
+  fundingContact: "",
+  buildMonths: "",
+  killerFeatures: "",
+  secretSauce: "",
+  teamInfo: "",
+  hiring: "",
+  compensation: "",
   apiStatus: "NONE",
   apiTypes: [],
   apiDocsUrl: "",
@@ -98,11 +113,13 @@ const THEME_SWATCH: Record<string, [string, string]> = {
   steppe: ["#EFF6FC", "#0284C7"],
 };
 
-export type Tab = "main" | "business" | "api" | "design";
+export type Tab = "main" | "invest" | "product" | "team" | "api" | "design";
 const TAB_FIELDS: Record<Tab, string[]> = {
-  main: ["name", "shortDesc", "fullDesc", "tagIds", "logoUrl", "coverUrl", "githubUrl", "demoUrl", "websiteUrl", "preOrderPrice", "preOrderGoal", "preOrderDesc", "paymentUrl"],
-  business: ["roadmap", "advantages", "competitors", "implPrice", "implDays", "fundingNeed", "fundingNeedDesc", "walletAddress"],
-  api: ["apiStatus", "apiTypes", "apiDocsUrl", "collabNote"],
+  main: ["name", "shortDesc", "fullDesc", "tagIds", "logoUrl", "coverUrl"],
+  invest: ["fundingNeed", "fundingNeedDesc", "fundingBreakdown", "fundingContact"],
+  product: ["roadmap", "advantages", "competitors", "killerFeatures", "secretSauce", "implPrice", "implDays", "buildMonths"],
+  team: ["teamInfo", "hiring", "compensation", "collabNote"],
+  api: ["apiStatus", "apiTypes", "apiDocsUrl", "githubUrl", "demoUrl", "websiteUrl"],
   design: ["pageTheme", "pageAccent", "pageFont", "pageLayout"],
 };
 
@@ -132,7 +149,8 @@ export function StartupForm({
   const [tab, setTab] = useState<Tab>(initialTab);
   const [shortDesc, setShortDesc] = useState(defaults.shortDesc);
   const [selected, setSelected] = useState<string[]>(defaults.tagIds);
-  const [preorder, setPreorder] = useState(defaults.preOrderEnabled);
+  const [fund, setFund] = useState<FundRow[]>(defaults.fundingBreakdown.length ? defaults.fundingBreakdown : []);
+  const fundTotal = fund.reduce((a, r) => a + (Number(r.amount.replace(/\s/g, "")) || 0), 0);
   const [roadmap, setRoadmap] = useState<RoadmapItem[]>(defaults.roadmap);
   const [apiStatus, setApiStatus] = useState(defaults.apiStatus);
   const [collab, setCollab] = useState(defaults.openToCollab);
@@ -228,52 +246,112 @@ export function StartupForm({
           </div>
         </section>
 
-        <section className="card space-y-5 p-5 sm:p-6">
-          <h2 className="text-lg font-bold">{d.form.links}</h2>
-          <div className="grid gap-5 sm:grid-cols-2">
-            {!hideImageUrls && (
-              <>
-                <UrlField name="logoUrl" label={d.form.logoUrl} defaultValue={defaults.logoUrl} errors={e.logoUrl} hint={d.form.logoUrlHint} />
-                <UrlField name="coverUrl" label={d.form.coverUrl} defaultValue={defaults.coverUrl} errors={e.coverUrl} hint={d.form.coverUrlHint} />
-              </>
-            )}
-            <UrlField name="githubUrl" label={d.form.githubUrl} defaultValue={defaults.githubUrl} errors={e.githubUrl} placeholder="https://github.com/owner/repo" hint={d.form.githubUrlHint} />
-            <UrlField name="demoUrl" label={d.form.demoUrl} defaultValue={defaults.demoUrl} errors={e.demoUrl} />
-            <UrlField name="websiteUrl" label={d.form.websiteUrl} defaultValue={defaults.websiteUrl} errors={e.websiteUrl} />
-          </div>
-        </section>
 
-        <section className="card space-y-5 p-5 sm:p-6">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h2 className="text-lg font-bold">{d.form.preorder}</h2>
-              <p className="mt-1 text-sm text-muted">{d.form.preorderText}</p>
-            </div>
-            <Toggle name="preOrderEnabled" checked={preorder} onChange={setPreorder} label={d.form.preorderToggle} />
+        {!hideImageUrls && (
+          <section className="card grid gap-5 p-5 sm:grid-cols-2 sm:p-6">
+            <UrlField name="logoUrl" label={d.form.logoUrl} defaultValue={defaults.logoUrl} errors={e.logoUrl} hint={d.form.logoUrlHint} />
+            <UrlField name="coverUrl" label={d.form.coverUrl} defaultValue={defaults.coverUrl} errors={e.coverUrl} hint={d.form.coverUrlHint} />
+          </section>
+        )}
+      </div>
+
+      {/* ---------- Инвестиции ---------- */}
+      <div className={cn("space-y-6", tab !== "invest" && "hidden")}>
+        <section className="card space-y-5 p-5 sm:p-6" id="funding">
+          <div>
+            <h2 className="text-lg font-bold">{d.cardForm.investTitle}</h2>
+            <p className="mt-1 text-sm text-muted">{d.cardForm.investText}</p>
           </div>
-          <div className={cn("space-y-5", !preorder && "pointer-events-none opacity-50")}>
-            <div className="grid gap-5 sm:grid-cols-2">
-              <NumberField name="preOrderPrice" label={`${d.form.price} *`} defaultValue={String(defaults.preOrderPrice)} errors={e.preOrderPrice} step={100} />
-              <NumberField name="preOrderGoal" label={d.form.goal} defaultValue={String(defaults.preOrderGoal)} errors={e.preOrderGoal} step={1000} hint={d.form.goalHint} />
+          <div className="space-y-2">
+            {fund.map((row, i) => (
+              <div key={i} className="grid grid-cols-[1fr_140px_auto] gap-2">
+                <input
+                  name="fundItem"
+                  value={row.item}
+                  onChange={(ev) => setFund((f) => f.map((x, j) => (j === i ? { ...x, item: ev.target.value } : x)))}
+                  maxLength={120}
+                  className="input"
+                  placeholder={d.cardForm.fundItemPh}
+                  aria-label={d.cardForm.fundItemPh}
+                />
+                <input
+                  name="fundAmount"
+                  value={row.amount}
+                  onChange={(ev) => setFund((f) => f.map((x, j) => (j === i ? { ...x, amount: ev.target.value.replace(/[^\d]/g, "") } : x)))}
+                  inputMode="numeric"
+                  className="input tabular-nums"
+                  placeholder={d.cardForm.fundAmountPh}
+                  aria-label={d.cardForm.fundAmountPh}
+                />
+                <button type="button" onClick={() => setFund((f) => f.filter((_, j) => j !== i))} className="btn-ghost px-3 text-danger" aria-label="✕">
+                  ✕
+                </button>
+              </div>
+            ))}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              {fund.length < 12 && (
+                <button type="button" onClick={() => setFund((f) => [...f, { item: "", amount: "" }])} className="btn-secondary btn-sm">
+                  + {d.cardForm.fundAdd}
+                </button>
+              )}
+              <span className="text-sm">
+                {d.cardForm.fundTotal}: <b className="tabular-nums">{new Intl.NumberFormat("ru-RU").format(fundTotal)} ₸</b>
+              </span>
+            </div>
+            <FieldError errors={e.fundingBreakdown} />
+          </div>
+          <div className={cn("space-y-5", fund.length === 0 && "opacity-60")}>
+            <div>
+              <label htmlFor="fundingNeedDesc" className="label">{d.cardForm.fundWhy}{fund.length > 0 && " *"}</label>
+              <textarea id="fundingNeedDesc" name="fundingNeedDesc" defaultValue={defaults.fundingNeedDesc} rows={4} maxLength={3000} className="input" placeholder={d.cardForm.fundWhyPh} />
+              <p className="hint">{d.cardForm.fundWhyHint}</p>
+              <FieldError errors={e.fundingNeedDesc} />
             </div>
             <div>
-              <label htmlFor="preOrderDesc" className="label">{d.form.preorderDesc} *</label>
-              <textarea id="preOrderDesc" name="preOrderDesc" defaultValue={defaults.preOrderDesc} rows={3} className="input" placeholder={d.form.preorderDescPh} />
-              <FieldError errors={e.preOrderDesc} />
+              <label htmlFor="fundingContact" className="label">{d.cardForm.fundContact}{fund.length > 0 && " *"}</label>
+              <input id="fundingContact" name="fundingContact" defaultValue={defaults.fundingContact} maxLength={200} className="input" placeholder={d.cardForm.fundContactPh} />
+              <p className="hint">{d.cardForm.fundContactHint}</p>
+              <FieldError errors={e.fundingContact} />
             </div>
-            <UrlField name="paymentUrl" label={d.form.paymentUrl} defaultValue={defaults.paymentUrl} errors={e.paymentUrl} placeholder="https://pay.kaspi.kz/pay/..." hint={d.form.paymentUrlHint} />
           </div>
         </section>
       </div>
 
-      {/* ---------- Бизнес ---------- */}
-      <div className={cn("space-y-6", tab !== "business" && "hidden")}>
+      {/* ---------- Продукт и сроки ---------- */}
+      <div className={cn("space-y-6", tab !== "product" && "hidden")}>
         <section className="card space-y-5 p-5 sm:p-6">
-          <div>
-            <h2 className="text-lg font-bold">{d.form.business}</h2>
-            <p className="mt-1 text-sm text-muted">{d.form.businessText}</p>
+          <h2 className="text-lg font-bold">{d.cardForm.timingTitle}</h2>
+          <div className="grid gap-5 sm:grid-cols-3">
+            <NumberField name="buildMonths" label={d.cardForm.buildMonths} defaultValue={defaults.buildMonths} errors={e.buildMonths} step={1} hint={d.cardForm.buildMonthsHint} />
+            <NumberField name="implDays" label={d.cardForm.implDays} defaultValue={defaults.implDays} errors={e.implDays} step={1} />
+            <NumberField name="implPrice" label={d.cardForm.implPrice} defaultValue={defaults.implPrice} errors={e.implPrice} step={1000} />
           </div>
+        </section>
 
+        <section className="card space-y-5 p-5 sm:p-6">
+          <h2 className="text-lg font-bold">{d.cardForm.diffTitle}</h2>
+          <div>
+            <label htmlFor="advantages" className="label">{d.cardForm.advantages}</label>
+            <textarea id="advantages" name="advantages" defaultValue={defaults.advantages} rows={4} className="input" placeholder={d.form.advantagesPh} />
+            <FieldError errors={e.advantages} />
+          </div>
+          <div>
+            <label htmlFor="competitors" className="label">{d.cardForm.competitors}</label>
+            <input id="competitors" name="competitors" defaultValue={defaults.competitors} maxLength={500} className="input" placeholder={d.form.competitorsPh} />
+          </div>
+          <div>
+            <label htmlFor="killerFeatures" className="label">{d.cardForm.killer}</label>
+            <textarea id="killerFeatures" name="killerFeatures" defaultValue={defaults.killerFeatures} rows={3} maxLength={3000} className="input" placeholder={d.cardForm.killerPh} />
+            <FieldError errors={e.killerFeatures} />
+          </div>
+          <div>
+            <label htmlFor="secretSauce" className="label">{d.cardForm.sauce}</label>
+            <textarea id="secretSauce" name="secretSauce" defaultValue={defaults.secretSauce} rows={3} maxLength={3000} className="input" placeholder={d.cardForm.saucePh} />
+            <FieldError errors={e.secretSauce} />
+          </div>
+        </section>
+
+        <section className="card space-y-5 p-5 sm:p-6">
           <div>
             <span className="label">{d.form.roadmap}</span>
             <p className="hint mb-3 mt-0">{d.form.roadmapHint}</p>
@@ -332,47 +410,43 @@ export function StartupForm({
             )}
             <FieldError errors={e.roadmap} />
           </div>
+        </section>
+      </div>
 
+      {/* ---------- Команда ---------- */}
+      <div className={cn("space-y-6", tab !== "team" && "hidden")}>
+        <section className="card space-y-5 p-5 sm:p-6">
+          <h2 className="text-lg font-bold">{d.cardForm.teamTitle}</h2>
           <div>
-            <label htmlFor="advantages" className="label">{d.form.advantages}</label>
-            <textarea id="advantages" name="advantages" defaultValue={defaults.advantages} rows={5} className="input" placeholder={d.form.advantagesPh} />
-            <FieldError errors={e.advantages} />
-          </div>
-          <div>
-            <label htmlFor="competitors" className="label">{d.form.competitors}</label>
-            <input id="competitors" name="competitors" defaultValue={defaults.competitors} maxLength={500} className="input" placeholder={d.form.competitorsPh} />
-          </div>
-          <div className="grid gap-5 sm:grid-cols-2">
-            <NumberField name="implPrice" label={d.form.implPrice} defaultValue={defaults.implPrice} errors={e.implPrice} step={1000} />
-            <NumberField name="implDays" label={d.form.implDays} defaultValue={defaults.implDays} errors={e.implDays} step={1} />
-          </div>
-          <div className="grid gap-5 sm:grid-cols-[220px_1fr]">
-            <NumberField name="fundingNeed" label={d.form.fundingNeed} defaultValue={defaults.fundingNeed} errors={e.fundingNeed} step={100000} />
-            <div>
-              <label htmlFor="fundingNeedDesc" className="label">{d.form.fundingNeedDesc}</label>
-              <textarea id="fundingNeedDesc" name="fundingNeedDesc" defaultValue={defaults.fundingNeedDesc} rows={2} className="input" placeholder={d.form.fundingNeedDescPh} />
-            </div>
+            <label htmlFor="teamInfo" className="label">{d.cardForm.teamInfo}</label>
+            <textarea id="teamInfo" name="teamInfo" defaultValue={defaults.teamInfo} rows={4} maxLength={3000} className="input" placeholder={d.cardForm.teamInfoPh} />
+            <FieldError errors={e.teamInfo} />
           </div>
           <div>
-            <label htmlFor="walletAddress" className="label">{d.crypto.walletLabel}</label>
-            <input
-              id="walletAddress"
-              name="walletAddress"
-              defaultValue={defaults.walletAddress}
-              maxLength={42}
-              spellCheck={false}
-              autoComplete="off"
-              className="input font-mono text-sm"
-              placeholder="0x…"
-              pattern="^0x[0-9a-fA-F]{40}$"
-            />
-            <p className="mt-1 text-xs text-muted">{d.crypto.walletHint}</p>
-            <FieldError errors={e.walletAddress} />
+            <label htmlFor="hiring" className="label">{d.cardForm.hiring}</label>
+            <textarea id="hiring" name="hiring" defaultValue={defaults.hiring} rows={3} maxLength={2000} className="input" placeholder={d.cardForm.hiringPh} />
+            <FieldError errors={e.hiring} />
+          </div>
+          <div>
+            <label htmlFor="compensation" className="label">{d.cardForm.compensation}</label>
+            <input id="compensation" name="compensation" defaultValue={defaults.compensation} maxLength={1000} className="input" placeholder={d.cardForm.compensationPh} />
+            <FieldError errors={e.compensation} />
+          </div>
+        </section>
+        <section className="card space-y-5 p-5 sm:p-6">
+          <div className="flex items-start justify-between gap-4">
+            <h2 className="text-lg font-bold">{d.form.collabSection}</h2>
+            <Toggle name="openToCollab" checked={collab} onChange={setCollab} label={d.form.openToCollab} />
+          </div>
+          <p className="-mt-3 text-sm text-muted">{d.form.openToCollab}</p>
+          <div className={cn(!collab && "pointer-events-none opacity-50")}>
+            <label htmlFor="collabNote" className="label">{d.form.collabNote}</label>
+            <textarea id="collabNote" name="collabNote" defaultValue={defaults.collabNote} rows={3} maxLength={500} className="input" placeholder={d.form.collabNotePh} />
           </div>
         </section>
       </div>
 
-      {/* ---------- API и коллабы ---------- */}
+      {/* ---------- API и ссылки ---------- */}
       <div className={cn("space-y-6", tab !== "api" && "hidden")}>
         <section className="card space-y-5 p-5 sm:p-6">
           <h2 className="text-lg font-bold">{d.form.apiSection}</h2>
@@ -403,15 +477,13 @@ export function StartupForm({
           </div>
         </section>
 
+
         <section className="card space-y-5 p-5 sm:p-6">
-          <div className="flex items-start justify-between gap-4">
-            <h2 className="text-lg font-bold">{d.form.collabSection}</h2>
-            <Toggle name="openToCollab" checked={collab} onChange={setCollab} label={d.form.openToCollab} />
-          </div>
-          <p className="-mt-3 text-sm text-muted">{d.form.openToCollab}</p>
-          <div className={cn(!collab && "pointer-events-none opacity-50")}>
-            <label htmlFor="collabNote" className="label">{d.form.collabNote}</label>
-            <textarea id="collabNote" name="collabNote" defaultValue={defaults.collabNote} rows={3} maxLength={500} className="input" placeholder={d.form.collabNotePh} />
+          <h2 className="text-lg font-bold">{d.cardForm.linksTitle}</h2>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <UrlField name="githubUrl" label={d.form.githubUrl} defaultValue={defaults.githubUrl} errors={e.githubUrl} placeholder="https://github.com/owner/repo" hint={d.form.githubUrlHint} />
+            <UrlField name="demoUrl" label={d.form.demoUrl} defaultValue={defaults.demoUrl} errors={e.demoUrl} />
+            <UrlField name="websiteUrl" label={d.form.websiteUrl} defaultValue={defaults.websiteUrl} errors={e.websiteUrl} />
           </div>
         </section>
       </div>

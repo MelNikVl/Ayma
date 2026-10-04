@@ -21,9 +21,9 @@ import { Markdown } from "@/components/Markdown";
 import { ProgressBar } from "@/components/ProgressBar";
 import { Avatar } from "@/components/Avatar";
 import { VoteButton } from "@/components/VoteButton";
-import { CryptoSponsor } from "@/components/CryptoSponsor";
 import { DevLinks } from "@/components/DevLinks";
-import { chainById, formatUsdt, shortAddress } from "@/lib/crypto";
+import { Comments } from "@/components/Comments";
+import { parseFundingBreakdown } from "@/lib/funding";
 import { ScoreBreakdown } from "@/components/ScoreBreakdown";
 import { Roadmap, parseRoadmap } from "@/components/Roadmap";
 import { RepoDetails, Stat } from "@/components/RepoDetails";
@@ -61,19 +61,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-async function cryptoStats(startupId: string) {
-  const [agg, recent] = await Promise.all([
-    prisma.cryptoDonation.aggregate({ where: { startupId, status: "CONFIRMED" }, _sum: { amountCents: true }, _count: true }),
-    prisma.cryptoDonation.findMany({
-      where: { startupId, status: "CONFIRMED" },
-      orderBy: { createdAt: "desc" },
-      take: 10,
-      select: { id: true, chainId: true, txHash: true, fromAddress: true, amountCents: true, message: true, user: { select: { githubLogin: true } } },
-    }),
-  ]);
-  return { totalCents: agg._sum.amountCents ?? 0, count: agg._count, recent };
-}
-
 function hexToRgb(hex: string | null): string | null {
   const m = hex ? /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex) : null;
   return m ? `${parseInt(m[1]!, 16)} ${parseInt(m[2]!, 16)} ${parseInt(m[3]!, 16)}` : null;
@@ -97,7 +84,7 @@ export default async function StartupPage({ params, searchParams }: Props) {
   const meta = parseRepoMeta(startup.repoMeta);
   const repo = parseGithubUrl(startup.githubUrl);
   const roadmap = parseRoadmap(startup.roadmap);
-  const [funding, repoInfo, commits, voted, week, pendingClaim, myStartups, crypto, invest] = await Promise.all([
+  const [funding, repoInfo, commits, voted, week, pendingClaim, myStartups, invest] = await Promise.all([
     getFundingStats(startup.id),
     repo ? fetchRepoInfo(repo) : Promise.resolve(null),
     repo && !meta?.commits?.length ? fetchRecentCommits(repo, 5) : Promise.resolve([]),
@@ -117,7 +104,6 @@ export default async function StartupPage({ params, searchParams }: Props) {
           select: { id: true, name: true },
         })
       : Promise.resolve([]),
-    cryptoStats(startup.id),
     investStats(startup.id),
   ]);
 
@@ -126,6 +112,8 @@ export default async function StartupPage({ params, searchParams }: Props) {
   const canPreorder = startup.preOrderEnabled && startup.preOrderPrice > 0 && startup.status === "APPROVED";
   const sponsorHref = `/startup/${startup.slug}/sponsor`;
   const seeking = (startup.fundingNeed ?? 0) > 0;
+  const breakdown = parseFundingBreakdown(startup.fundingBreakdown);
+  const commentsCount = await prisma.comment.count({ where: { startupId: startup.id } });
   const investPct = seeking ? Math.min(100, Math.round((invest.interested / (startup.fundingNeed ?? 1)) * 100)) : 0;
   const loginHref = `/login?next=${encodeURIComponent(`/startup/${startup.slug}`)}`;
   const accentRgb = hexToRgb(startup.pageAccent);
@@ -187,7 +175,7 @@ export default async function StartupPage({ params, searchParams }: Props) {
       ) : null}
       <span className="inline-flex items-center gap-1.5"><EyeIcon className="h-4 w-4" /> {formatCompact(startup.viewsCount)}</span>
       <span className="inline-flex items-center gap-1.5">
-        <HeartIcon className="h-4 w-4" /> {funding.sponsors.length} {plural(funding.sponsors.length, d.common.sponsors, locale)}
+        <a href="#comments" className="hover:text-fg">💬 {commentsCount} {plural(commentsCount, d.comments.forms, locale)}</a>
       </span>
       {weekVotes > 0 && (
         <span className="inline-flex items-center gap-1.5 text-warning">
@@ -202,6 +190,9 @@ export default async function StartupPage({ params, searchParams }: Props) {
     <h1 className={cn("p-head flex items-center gap-2 font-extrabold tracking-tight", layout === "wide" ? "text-3xl sm:text-5xl" : "text-2xl sm:text-4xl", layout === "minimal" && "justify-center")}>
       {startup.name}
       {claimed && <VerifiedIcon title={d.card.claimedTeam} />}
+      {startup.isDemo && (
+        <span className="rounded-full bg-warning/15 px-2 py-0.5 align-middle font-sans text-xs font-bold tracking-normal text-warning">{d.pp.demoBadge}</span>
+      )}
     </h1>
   );
 
@@ -293,15 +284,57 @@ export default async function StartupPage({ params, searchParams }: Props) {
         </section>
       )}
 
-      {(startup.advantages || startup.competitors) && (
+      {(startup.advantages || startup.competitors || startup.killerFeatures || startup.secretSauce) && (
         <section className="card p-5 sm:p-7">
-          <h2 className="p-head mb-4 text-lg font-bold">{d.startup.advantages}</h2>
+          <h2 className="p-head mb-4 text-lg font-bold">{d.pp.diffTitle}</h2>
           {startup.advantages && <Markdown>{startup.advantages}</Markdown>}
+          {(startup.killerFeatures || startup.secretSauce) && (
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              {startup.killerFeatures && (
+                <div className="rounded-2xl border border-accent/25 bg-accent/[0.05] p-4">
+                  <div className="mb-1.5 text-sm font-bold">⚡ {d.pp.killerTitle}</div>
+                  <p className="whitespace-pre-line text-sm leading-relaxed">{startup.killerFeatures}</p>
+                </div>
+              )}
+              {startup.secretSauce && (
+                <div className="rounded-2xl border border-warning/30 bg-warning/[0.06] p-4">
+                  <div className="mb-1.5 text-sm font-bold">🤫 {d.pp.sauceTitle}</div>
+                  <p className="whitespace-pre-line text-sm leading-relaxed">{startup.secretSauce}</p>
+                </div>
+              )}
+            </div>
+          )}
           {startup.competitors && (
             <p className="mt-4 text-sm text-muted">
-              <b className="text-fg">{d.startup.competitors}:</b> {startup.competitors}
+              <b className="text-fg">{d.pp.competitors}:</b> {startup.competitors}
             </p>
           )}
+        </section>
+      )}
+
+      {(startup.teamInfo || startup.hiring || startup.compensation) && (
+        <section className="card p-5 sm:p-7" id="team-info">
+          <h2 className="p-head mb-4 text-lg font-bold">{d.pp.teamTitle}</h2>
+          <dl className="space-y-4">
+            {startup.teamInfo && (
+              <div>
+                <dt className="text-xs font-semibold uppercase tracking-wide text-muted">{d.pp.teamInfo}</dt>
+                <dd className="mt-1 whitespace-pre-line text-sm leading-relaxed">{startup.teamInfo}</dd>
+              </div>
+            )}
+            {startup.hiring && (
+              <div className="rounded-xl bg-success/[0.07] p-3">
+                <dt className="text-xs font-semibold uppercase tracking-wide text-success">{d.pp.hiring}</dt>
+                <dd className="mt-1 whitespace-pre-line text-sm leading-relaxed">{startup.hiring}</dd>
+              </div>
+            )}
+            {startup.compensation && (
+              <div>
+                <dt className="text-xs font-semibold uppercase tracking-wide text-muted">{d.pp.compensation}</dt>
+                <dd className="mt-1 whitespace-pre-line text-sm">{startup.compensation}</dd>
+              </div>
+            )}
+          </dl>
         </section>
       )}
 
@@ -362,59 +395,9 @@ export default async function StartupPage({ params, searchParams }: Props) {
         </section>
       )}
 
-      <section className="card p-5 sm:p-7" id="sponsors">
-        <h2 className="p-head mb-4 text-lg font-bold">
-          {d.startup.sponsors} <span className="font-normal text-muted">{funding.sponsors.length}</span>
-        </h2>
-        {funding.sponsors.length === 0 ? (
-          <p className="text-sm text-muted">{d.startup.noSponsors}</p>
-        ) : (
-          <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-            {funding.sponsors.map((s) => (
-              <li key={s.id} className="flex min-w-0 items-center gap-2 rounded-lg bg-surface-2 px-3 py-2">
-                <Avatar user={s} size={28} />
-                <span className="truncate text-sm">{displayName(s)}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-        {crypto.recent.length > 0 && (
-          <div className="mt-6 border-t border-border/60 pt-5">
-            <h3 className="mb-3 flex items-baseline gap-2 text-sm font-bold">
-              {d.crypto.sponsorsTitle}
-              <span className="font-normal text-muted">
-                {formatUsdt(crypto.totalCents)} · {crypto.count} {d.crypto.donors}
-              </span>
-            </h3>
-            <ul className="divide-y divide-border/50">
-              {crypto.recent.map((c) => {
-                const ch = chainById(c.chainId);
-                return (
-                  <li key={c.id} className="flex items-center gap-3 py-2 text-sm">
-                    <span className="min-w-0 flex-1">
-                      <span className="font-semibold">
-                        {c.user?.githubLogin ? `@${c.user.githubLogin}` : `${d.crypto.anon} ${shortAddress(c.fromAddress ?? "")}`}
-                      </span>
-                      {c.message && <span className="ml-2 text-muted">«{c.message}»</span>}
-                    </span>
-                    <span className="shrink-0 font-bold tabular-nums">{formatUsdt(c.amountCents)}</span>
-                    {ch && (
-                      <a
-                        href={`${ch.explorer}/tx/${c.txHash}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="shrink-0 rounded-md bg-surface-2 px-1.5 py-0.5 text-[11px] text-muted hover:text-fg"
-                      >
-                        {ch.short} ↗
-                      </a>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        )}
-      </section>
+      {startup.status === "APPROVED" && (
+        <Comments startupId={startup.id} memberIds={startup.members.map((m) => m.userId)} user={user} loginHref={`${loginHref}#comments`} />
+      )}
     </div>
   );
 
@@ -427,141 +410,77 @@ export default async function StartupPage({ params, searchParams }: Props) {
           <>
             <div className="text-xs font-semibold uppercase tracking-wide text-success">{d.invest.need}</div>
             <div className="mt-1 text-3xl font-extrabold tabular-nums">{formatPrice(startup.fundingNeed ?? 0, locale)}</div>
-            {startup.fundingNeedDesc && <p className="mt-3 whitespace-pre-line text-sm text-muted">{startup.fundingNeedDesc}</p>}
-            <div className="mt-5">
-              <div className="h-2 overflow-hidden rounded-full bg-surface-2">
-                <div className="h-full rounded-full bg-success transition-all" style={{ width: `${investPct}%` }} />
+            {breakdown.length > 0 && (
+              <div className="mt-4">
+                <div className="mb-2 text-xs font-semibold text-muted">{d.pp.breakdownTitle}</div>
+                <ul className="space-y-2">
+                  {breakdown.map((b) => (
+                    <li key={b.item} className="text-sm">
+                      <div className="flex justify-between gap-3">
+                        <span className="min-w-0">{b.item}</span>
+                        <span className="shrink-0 font-semibold tabular-nums">{formatMoneyShort(b.amount, locale)}</span>
+                      </div>
+                      <div className="mt-1 h-1 overflow-hidden rounded-full bg-surface-2">
+                        <div className="h-full rounded-full bg-success/70" style={{ width: `${Math.round((b.amount / (startup.fundingNeed || 1)) * 100)}%` }} />
+                      </div>
+                    </li>
+                  ))}
+                </ul>
               </div>
-              <div className="mt-2 flex justify-between gap-2 text-xs text-muted">
-                <span>
-                  {d.invest.interested}: <b className="text-fg">{formatPrice(invest.interested, locale)}</b>
-                </span>
-                <span className="tabular-nums">
-                  {invest.investors} {plural(invest.investors, d.invest.investorsForms, locale)}
-                </span>
+            )}
+            {startup.fundingNeedDesc && (
+              <div className="mt-4">
+                <div className="mb-1 text-xs font-semibold text-muted">{d.pp.why}</div>
+                <p className="whitespace-pre-line text-sm">{startup.fundingNeedDesc}</p>
               </div>
-            </div>
+            )}
+            {startup.fundingContact && (
+              <div className="mt-4 rounded-xl bg-surface-2 p-3 text-sm">
+                <div className="text-xs text-muted">{d.pp.contactInvestors}</div>
+                <div className="mt-0.5 break-all font-semibold">{startup.fundingContact}</div>
+              </div>
+            )}
+            {invest.investors > 0 && (
+              <p className="mt-3 text-xs text-muted">
+                {d.invest.interested}: <b className="text-fg">{formatPrice(invest.interested, locale)}</b> · {invest.investors}{" "}
+                {plural(invest.investors, d.invest.investorsForms, locale)}
+              </p>
+            )}
+            {canManage ? (
+              <div className="mt-5 flex flex-col gap-2">
+                <Link href="/dashboard#investors" className="btn-secondary w-full">{d.invest.dashTitle} ({invest.investors})</Link>
+                <Link href={`/startup/${startup.slug}/edit?tab=invest#funding`} className="text-center text-sm font-semibold text-accent hover:underline">
+                  {d.crowd.edit} →
+                </Link>
+              </div>
+            ) : (
+              <Link href={`/startup/${startup.slug}/invest`} className="btn-primary mt-5 w-full py-3 text-base">{d.invest.cta}</Link>
+            )}
+            <p className="mt-3 text-[11px] leading-snug text-muted">{d.invest.disclaimer}</p>
           </>
         ) : (
           <>
             <div className="text-xs uppercase tracking-wide text-muted">{d.invest.title}</div>
             <div className="mt-1 font-semibold">{d.invest.notSeekingLong}</div>
-            {!canManage && <p className="mt-1 text-sm text-muted">{d.invest.notSeekingText}</p>}
-            {invest.investors > 0 && (
-              <p className="mt-2 text-xs text-muted">
-                {d.invest.interested}: <b className="text-fg">{formatPrice(invest.interested, locale)}</b> · {invest.investors}{" "}
-                {plural(invest.investors, d.invest.investorsForms, locale)}
-              </p>
+            {canManage && (
+              <Link href={`/startup/${startup.slug}/edit?tab=invest#funding`} className="mt-3 inline-block text-sm font-semibold text-accent hover:underline">
+                {d.crowd.start} →
+              </Link>
             )}
           </>
         )}
-        {canManage ? (
-          <div className="mt-5 flex flex-col gap-2">
-            <Link href="/dashboard#investors" className="btn-secondary w-full">{d.invest.dashTitle} ({invest.investors})</Link>
-            {!seeking && (
-              <Link href={`/startup/${startup.slug}/edit?tab=business#fundingNeed`} className="text-center text-sm font-semibold text-accent hover:underline">
-                {d.invest.setNeed} →
-              </Link>
-            )}
-          </div>
-        ) : (
-          <Link
-            href={`/startup/${startup.slug}/invest`}
-            className={(seeking ? "btn-primary py-3 text-base" : "btn-secondary py-2.5") + " mt-5 w-full"}
-          >
-            {seeking ? d.invest.cta : d.invest.interestAnyway}
-          </Link>
-        )}
-        <p className="mt-3 text-[11px] leading-snug text-muted">{d.invest.disclaimer}</p>
       </div>
 
-      {/* Предзаказ услуг — вторичное действие */}
-      {canPreorder && (
+      {(startup.implPrice || startup.implDays || startup.buildMonths !== null) && (
         <div className="card p-5 sm:p-6">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h2 className="p-head text-base font-bold">{d.invest.preorderTitle}</h2>
-              <div className="mt-0.5 text-sm text-muted">{fill(d.invest.preorderFrom, { price: formatPrice(startup.preOrderPrice, locale) })}</div>
-            </div>
-            {!isMember && (
-              <Link href={sponsorHref} className="btn-secondary btn-sm shrink-0">{d.card.sponsor}</Link>
+          <h3 className="p-head mb-3 flex items-center gap-2 font-bold"><ClockIcon className="h-4 w-4" /> {d.pp.timingTitle}</h3>
+          <div className="grid grid-cols-2 gap-3">
+            {startup.buildMonths !== null && (
+              <Stat label={d.pp.buildMonths} value={startup.buildMonths === 0 ? d.pp.ready : fill(d.pp.buildValue, { n: startup.buildMonths })} />
             )}
+            {startup.implDays ? <Stat label={d.pp.integration} value={fill(d.pp.integrationValue, { n: startup.implDays })} /> : null}
+            {startup.implPrice ? <Stat label={d.pp.implPrice} value={formatPrice(startup.implPrice, locale)} /> : null}
           </div>
-          {startup.preOrderDesc && <p className="mt-3 line-clamp-3 whitespace-pre-line text-sm text-muted">{startup.preOrderDesc}</p>}
-          {startup.preOrderGoal > 0 && (
-            <div className="mt-4"><ProgressBar raised={funding.raised} goal={startup.preOrderGoal} /></div>
-          )}
-          {funding.sponsors.length > 0 && (
-            <div className="mt-4 flex -space-x-2">
-              {funding.sponsors.slice(0, 10).map((sp) => (
-                <Avatar key={sp.id} user={sp} size={28} className="ring-2 ring-surface" />
-              ))}
-            </div>
-          )}
-          {!claimed && <p className="mt-3 rounded-lg bg-warning/10 px-3 py-2 text-xs">{d.startup.unclaimedNote}</p>}
-        </div>
-      )}
-
-      {startup.walletAddress && startup.status === "APPROVED" ? (
-        <div className="card p-5 sm:p-6" id="usdt">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h2 className="p-head text-base font-bold">{d.crypto.title}</h2>
-              <p className="mt-0.5 text-xs text-muted">{d.crypto.subtitle}</p>
-            </div>
-            {crypto.totalCents > 0 && (
-              <div className="shrink-0 text-right">
-                <div className="text-[11px] uppercase tracking-wide text-muted">{d.crypto.total}</div>
-                <div className="text-lg font-extrabold tabular-nums">{formatUsdt(crypto.totalCents)}</div>
-              </div>
-            )}
-          </div>
-          <details className="group mt-4">
-            <summary className="btn-secondary w-full cursor-pointer list-none py-2.5 [&::-webkit-details-marker]:hidden">
-              <span className="group-open:hidden">{d.crypto.title}</span>
-              <span className="hidden text-sm text-muted group-open:inline">{d.common.close}</span>
-            </summary>
-            <div className="mt-4">
-              <CryptoSponsor startupId={startup.id} wallet={startup.walletAddress} />
-            </div>
-          </details>
-        </div>
-      ) : canManage ? (
-        <div className="card border-dashed p-5 text-sm sm:p-6">
-          <p className="text-muted">{d.crypto.noWalletTeam}</p>
-          <Link href={`/startup/${startup.slug}/edit?tab=business#walletAddress`} className="mt-3 inline-block font-semibold text-accent hover:underline">
-            {d.crypto.addWallet} →
-          </Link>
-        </div>
-      ) : null}
-
-      <div className="card p-5 sm:p-6">
-        <ScoreBreakdown
-          score={startup.score}
-          parts={(Object.keys(STARTUP_SCORE_MAX) as (keyof StartupScoreParts)[]).map((k) => ({
-            key: k,
-            label: d.score.parts[k],
-            hint: d.score.hints[k],
-            value: scoreParts[k] ?? 0,
-            max: STARTUP_SCORE_MAX[k],
-          }))}
-        />
-        <Link href="/rating#how" className="mt-4 block text-xs text-accent hover:underline">{d.score.howTitle} →</Link>
-      </div>
-
-      {(startup.implPrice || startup.implDays) && (
-        <div className="card space-y-4 p-5 sm:p-6">
-          {(startup.implPrice || startup.implDays) && (
-            <div>
-              <h3 className="p-head mb-3 flex items-center gap-2 font-bold"><ClockIcon className="h-4 w-4" /> {d.startup.implementation}</h3>
-              <div className="grid grid-cols-2 gap-3">
-                {startup.implPrice ? <Stat label={d.startup.implPrice} value={formatPrice(startup.implPrice, locale)} /> : null}
-                {startup.implDays ? (
-                  <Stat label={d.startup.implDays} value={fill(d.startup.implDaysValue, { n: startup.implDays, days: plural(startup.implDays, d.common.days, locale) })} />
-                ) : null}
-              </div>
-            </div>
-          )}
         </div>
       )}
 
@@ -669,6 +588,11 @@ export default async function StartupPage({ params, searchParams }: Props) {
       className="bg-bg pb-28 text-fg lg:pb-10"
     >
       <StatusBanner status={startup.status} created={searchParams.created === "1"} d={d} />
+      {startup.isDemo && (
+        <div className="mx-auto mt-4 max-w-7xl px-4 sm:px-6">
+          <div className="rounded-xl border border-warning/30 bg-warning/10 px-4 py-2.5 text-sm">{d.pp.demoNote}</div>
+        </div>
+      )}
       {header}
 
       <div className="mx-auto max-w-7xl px-4 pt-6 sm:px-6">
@@ -685,7 +609,7 @@ export default async function StartupPage({ params, searchParams }: Props) {
         )}
       </div>
 
-      {!canManage && startup.status === "APPROVED" && (
+      {!canManage && seeking && startup.status === "APPROVED" && (
         <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-surface/95 px-4 py-3 backdrop-blur lg:hidden">
           <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
             <div className="min-w-0 leading-tight">

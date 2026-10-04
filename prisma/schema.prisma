@@ -45,6 +45,7 @@ model User {
   jobs            Job[]            @relation("JobAuthor")
   jobResponses    JobResponse[]
   investInterests InvestInterest[]
+  comments        Comment[]
 }
 
 model Startup {
@@ -121,6 +122,21 @@ model Startup {
   updatedAt       DateTime         @updatedAt
   jobResponses    JobResponse[]
   investInterests InvestInterest[]
+
+  // Инвестиции: разбивка «на что» [{ item, amount }] и контакт для инвесторов
+  fundingBreakdown Json?
+  fundingContact   String?   @db.VarChar(200)
+  // Сроки: реализация проекта (мес); implDays — интеграция у клиента (дн)
+  buildMonths      Int?
+  // Отличия
+  killerFeatures   String?
+  secretSauce      String?
+  // Команда
+  teamInfo         String?
+  hiring           String?
+  compensation     String?
+  isDemo           Boolean   @default(false) // демонстрационный проект (тестовые данные)
+  comments         Comment[]
 
   @@index([status])
   @@index([slug])
@@ -382,4 +398,18 @@ model InvestInterest {
 
   @@unique([startupId, userId])
   @@index([startupId, status])
+}
+
+/// Комментарии к проекту (как на Product Hunt). Лимит: 1 комментарий в сутки на пользователя (команда — без лимита у себя)
+model Comment {
+  id        String   @id @default(cuid())
+  startupId String
+  startup   Startup  @relation(fields: [startupId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  text      String   @db.VarChar(1000)
+  createdAt DateTime @default(now())
+
+  @@index([startupId, createdAt])
+  @@index([userId, createdAt])
 }

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { StartupCardData } from "@/lib/queries";
 import { getI18n } from "@/i18n/server";
-import { formatMoneyShort } from "@/i18n/format";
+import { fill, formatMoneyShort } from "@/i18n/format";
 import { tTag } from "@/i18n/dictionaries";
 import { StartupLogo } from "./StartupLogo";
 import { TagBadge } from "./TagBadge";
@@ -43,6 +43,7 @@ export function StartupCard({
           <div className="flex items-center gap-1">
             <h3 className="truncate text-base font-bold leading-tight group-hover:text-accent">{startup.name}</h3>
             {claimed && <VerifiedIcon title={d.card.claimedTeam} />}
+            {startup.isDemo && <span className="shrink-0 rounded-full bg-warning/15 px-1.5 py-px text-[10px] font-bold text-warning">{d.pp.demoBadge}</span>}
           </div>
           <p className="mt-1 line-clamp-2 text-sm leading-snug text-muted">{startup.shortDesc}</p>
         </div>
@@ -65,15 +66,14 @@ export function StartupCard({
           </div>
         )}
         <div className="flex items-center justify-between gap-2 border-t border-border/60 pt-3">
-          <div className="min-w-0 leading-tight">
-            <div className="text-[11px] uppercase tracking-wide text-muted">{seeking ? d.invest.need : d.invest.title}</div>
-            <div className={seeking ? "text-base font-bold tabular-nums text-success" : "text-xs text-muted"}>
-              {seeking ? formatMoneyShort(startup.fundingNeed ?? 0, locale) : d.invest.notSeeking}
-            </div>
-          </div>
-          <Link href={`${href}/invest`} className={(seeking ? "btn-primary" : "btn-secondary") + " relative z-10 shrink-0 px-3.5"}>
-            {d.invest.cta}
-          </Link>
+          {seeking ? (
+            <span className="text-sm font-bold text-success">
+              {fill(d.invest.seeking, { amount: formatMoneyShort(startup.fundingNeed ?? 0, locale) })}
+            </span>
+          ) : (
+            <span className="text-xs text-muted">{startup._count.comments > 0 ? `💬 ${startup._count.comments}` : ""}</span>
+          )}
+          <Link href={href} className="btn-secondary btn-sm relative z-10">{d.card.more}</Link>
         </div>
       </div>
     </article>

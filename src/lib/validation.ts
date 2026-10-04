@@ -56,6 +56,12 @@ const roadmapItem = z.object({
   status: z.enum(ROADMAP_STATUSES),
 });
 
+/** Статья расходов инвестиций: «на что» + сумма */
+const fundingItem = z.object({
+  item: z.string().trim().min(3, "fundingItem").max(120, "tooLong"),
+  amount: z.coerce.number({ invalid_type_error: "number" }).int("int").min(1, "fundingAmount").max(100_000_000_000, "range"),
+});
+
 export const startupSchema = z
   .object({
     name: z.string().trim().min(2, "min2").max(60, "max60"),
@@ -83,11 +89,16 @@ export const startupSchema = z
     implDays: optionalInt(3650),
     fundingNeed: optionalInt(100_000_000_000),
     fundingNeedDesc: optionalText(3000),
-    walletAddress: z
-      .string()
-      .trim()
-      .transform((v) => (v === "" ? null : v))
-      .pipe(z.string().regex(/^0x[0-9a-fA-F]{40}$/, "wallet").nullable()),
+    fundingBreakdown: z.array(fundingItem).max(12, "tooLong"),
+    fundingContact: optionalText(200),
+    buildMonths: optionalInt(240),
+    // отличия
+    killerFeatures: optionalText(3000),
+    secretSauce: optionalText(3000),
+    // команда
+    teamInfo: optionalText(3000),
+    hiring: optionalText(2000),
+    compensation: optionalText(1000),
     // API и коллабы
     apiStatus: z.enum(API_STATUSES),
     apiTypes: z.array(z.enum(API_TYPES)).max(API_TYPES.length),
@@ -111,6 +122,15 @@ export const startupSchema = z
     if (data.preOrderEnabled && !data.preOrderDesc) {
       ctx.addIssue({ code: "custom", path: ["preOrderDesc"], message: "preorderDesc" });
     }
+    // Если ищут инвестиции — обязательно объяснить зачем и как связаться
+    if (data.fundingBreakdown.length > 0) {
+      if (!data.fundingNeedDesc || data.fundingNeedDesc.length < 30) {
+        ctx.addIssue({ code: "custom", path: ["fundingNeedDesc"], message: "fundingWhy" });
+      }
+      if (!data.fundingContact) {
+        ctx.addIssue({ code: "custom", path: ["fundingContact"], message: "fundingContact" });
+      }
+    }
   });
 
 export type StartupInput = z.infer<typeof startupSchema>;
@@ -118,6 +138,14 @@ export type StartupInput = z.infer<typeof startupSchema>;
 function str(formData: FormData, key: string, fallback = ""): string {
   const v = formData.get(key);
   return typeof v === "string" ? v : fallback;
+}
+
+function parseFunding(formData: FormData) {
+  const items = formData.getAll("fundItem").map(String);
+  const amounts = formData.getAll("fundAmount").map(String);
+  return items
+    .map((item, i) => ({ item, amount: (amounts[i] ?? "").replace(/\s/g, "") }))
+    .filter((r) => r.item.trim() !== "" || r.amount !== "");
 }
 
 function parseRoadmap(formData: FormData) {
@@ -150,9 +178,20 @@ export function parseStartupForm(formData: FormData) {
     competitors: str(formData, "competitors"),
     implPrice: str(formData, "implPrice"),
     implDays: str(formData, "implDays"),
-    fundingNeed: str(formData, "fundingNeed"),
+    // сумма инвестиций = сумма статей разбивки
+    fundingNeed: (() => {
+      const total = parseFunding(formData).reduce((a, r) => a + (Number(r.amount) || 0), 0);
+      return total > 0 ? String(total) : "";
+    })(),
     fundingNeedDesc: str(formData, "fundingNeedDesc"),
-    walletAddress: str(formData, "walletAddress"),
+    fundingBreakdown: parseFunding(formData),
+    fundingContact: str(formData, "fundingContact"),
+    buildMonths: str(formData, "buildMonths"),
+    killerFeatures: str(formData, "killerFeatures"),
+    secretSauce: str(formData, "secretSauce"),
+    teamInfo: str(formData, "teamInfo"),
+    hiring: str(formData, "hiring"),
+    compensation: str(formData, "compensation"),
     apiStatus: str(formData, "apiStatus", "NONE") || "NONE",
     apiTypes: formData.getAll("apiTypes").map(String),
     apiDocsUrl: str(formData, "apiDocsUrl"),

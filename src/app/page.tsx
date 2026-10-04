@@ -126,7 +126,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
                     <span className="text-sm font-semibold tabular-nums">
                       {(spot.item.fundingNeed ?? 0) > 0
                         ? fill(d.invest.seeking, { amount: formatMoneyShort(spot.item.fundingNeed ?? 0, locale) })
-                        : d.invest.notSeeking}
+                        : ""}
                     </span>
                     <VoteButton startupId={spot.item.id} count={spot.item.votesCount} voted={voted.has(spot.item.id)} />
                   </div>

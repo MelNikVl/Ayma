@@ -4,22 +4,23 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useI18n } from "@/i18n/client";
 import { cn } from "@/lib/cn";
-import { BriefcaseIcon, PlusIcon, RocketIcon, UsersIcon } from "./icons";
+import { BriefcaseIcon, CoinsIcon, PlusIcon, RocketIcon, UsersIcon } from "./icons";
 
-export type Section = "projects" | "teams" | "clients";
+export type Section = "projects" | "teams" | "crowdfunding" | "clients";
 
 /** Раздел сайта по адресу страницы */
 export function useSection(): Section {
   const path = usePathname() ?? "/";
   const params = useSearchParams();
   if (path.startsWith("/business") || path.startsWith("/jobs")) return "clients";
+  if (path.startsWith("/crowdfunding") || /^\/startup\/[^/]+\/invest/.test(path)) return "crowdfunding";
   if (path.startsWith("/teams") || path.startsWith("/u/") || path.startsWith("/collabs")) return "teams";
   if (path.startsWith("/rating") && params?.get("tab") === "devs") return "teams";
   return "projects";
 }
 
-const SECTION_HOME: Record<Section, string> = { projects: "/", teams: "/teams", clients: "/business" };
-const SECTION_ICON = { projects: RocketIcon, teams: UsersIcon, clients: BriefcaseIcon } as const;
+const SECTION_HOME: Record<Section, string> = { projects: "/", teams: "/teams", crowdfunding: "/crowdfunding", clients: "/business" };
+const SECTION_ICON = { projects: RocketIcon, teams: UsersIcon, crowdfunding: CoinsIcon, clients: BriefcaseIcon } as const;
 
 /** Три основных раздела: Проекты · Команды · Заказчики */
 export function SectionTabs({ className, compact = false }: { className?: string; compact?: boolean }) {
@@ -37,11 +38,11 @@ export function SectionTabs({ className, compact = false }: { className?: string
             aria-current={active ? "page" : undefined}
             className={cn(
               "inline-flex items-center gap-1.5 rounded-full font-semibold transition-colors",
-              compact ? "px-3 py-1 text-xs" : "px-3.5 py-1.5 text-sm",
+              compact ? "px-2 py-1 text-xs" : "px-3 py-1.5 text-sm",
               active ? "bg-surface text-fg shadow-card" : "text-muted hover:text-fg",
             )}
           >
-            <Icon className={cn(compact ? "h-3.5 w-3.5" : "h-4 w-4", active && "text-accent")} />
+            <Icon className={cn(compact ? "hidden h-3.5 w-3.5 min-[420px]:block" : "h-4 w-4", active && "text-accent")} />
             {d.sections[s]}
           </Link>
         );
@@ -59,7 +60,12 @@ export function SectionSubNav() {
   const tab = params?.get("tab");
 
   const links: { href: string; label: string; active: boolean; cta?: boolean }[] =
-    section === "clients"
+    section === "crowdfunding"
+      ? [
+          { href: "/crowdfunding", label: d.sub.crowd, active: path === "/crowdfunding" || path.includes("/invest") },
+          { href: "/crowdfunding/start", label: d.sub.crowdStart, active: path === "/crowdfunding/start", cta: true },
+        ]
+      : section === "clients"
       ? [
           { href: "/business", label: d.sub.forBiz, active: path === "/business" },
           { href: "/jobs", label: d.sub.jobs, active: path === "/jobs" || (path.startsWith("/jobs/") && path !== "/jobs/new") },
@@ -105,8 +111,8 @@ export function SectionSubNav() {
 export function SectionAddButton() {
   const { d } = useI18n();
   const section = useSection();
-  const href = section === "clients" ? "/jobs/new" : "/startup/new";
-  const label = section === "clients" ? d.sub.postJob : d.sub.addProject;
+  const href = section === "clients" ? "/jobs/new" : section === "crowdfunding" ? "/crowdfunding/start" : "/startup/new";
+  const label = section === "clients" ? d.sub.postJob : section === "crowdfunding" ? d.crowd.cta : d.sub.addProject;
   return (
     <>
       <Link href={href} className="btn-secondary hidden xl:inline-flex">

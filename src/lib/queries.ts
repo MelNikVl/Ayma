@@ -26,7 +26,8 @@ export const startupCardSelect = {
   openToCollab: true,
   fundingNeed: true,
   pageAccent: true,
-  _count: { select: { members: true } },
+  isDemo: true,
+  _count: { select: { members: true, comments: true } },
   tags: { select: { id: true, name: true, color: true }, orderBy: { name: "asc" } },
 } satisfies Prisma.StartupSelect;
 

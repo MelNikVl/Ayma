@@ -4,7 +4,7 @@ import { parseRepoMeta } from "./repo-meta";
 /**
  * AYMA Score — рейтинг проекта 0–100. Пять составляющих (максимум в скобках):
  *  - community (30): голоса пользователей + просмотры
- *  - support   (20): оплаченные предзаказы и подтверждённое крипто-спонсорство (USDT)
+ *  - support   (20): оплаченные предзаказы
  *  - tech      (25): зрелость, коммиты, авторы, звёзды GitHub
  *  - profile   (15): насколько полно заполнена и оформлена карточка
  *  - team      (10): команда подтвердила проект, открыта к коллаборациям, есть API
@@ -142,26 +142,8 @@ async function paidStats(startupIds: string[]) {
     _sum: { amount: true },
     _count: true,
   });
-  const map = new Map(rows.map((r) => [r.startupId, { amount: r._sum.amount ?? 0, count: r._count }]));
-  // Крипто-спонсорство (USDT) учитываем по фиксированному курсу — только для рейтинга
-  const crypto = await prisma.cryptoDonation.groupBy({
-    by: ["startupId"],
-    where: { status: "CONFIRMED", startupId: { in: startupIds } },
-    _sum: { amountCents: true },
-    _count: true,
-  });
-  for (const c of crypto) {
-    const prev = map.get(c.startupId) ?? { amount: 0, count: 0 };
-    map.set(c.startupId, {
-      amount: prev.amount + Math.round(((c._sum.amountCents ?? 0) / 100) * USDT_KZT_FOR_SCORE),
-      count: prev.count + c._count,
-    });
-  }
-  return map;
+  return new Map(rows.map((r) => [r.startupId, { amount: r._sum.amount ?? 0, count: r._count }]));
 }
-
-/** Курс USDT→₸ для рейтинга (приблизительный, на отображение сумм не влияет) */
-const USDT_KZT_FOR_SCORE = 500;
 
 export async function recomputeStartupScores(ids?: string[]): Promise<number> {
   const startups = await prisma.startup.findMany({

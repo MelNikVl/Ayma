@@ -57,6 +57,9 @@ export function StartupRow({
         <div className="flex items-center gap-1.5">
           <h3 className="truncate text-[15px] font-bold leading-tight group-hover:text-accent sm:text-base">{startup.name}</h3>
           {claimed && <VerifiedIcon title={d.card.claimedTeam} />}
+          {startup.isDemo && (
+            <span className="shrink-0 rounded-full bg-warning/15 px-1.5 py-px text-[10px] font-bold text-warning">{d.pp.demoBadge}</span>
+          )}
           {weekVotes > 0 && (
             <span className="shrink-0 rounded-full bg-accent/10 px-1.5 py-px text-[10px] font-bold text-accent">
               +{weekVotes} {d.row.thisWeek}
@@ -96,10 +99,17 @@ export function StartupRow({
               <HandshakeIcon className="h-3.5 w-3.5" /> {d.row.collab}
             </span>
           )}
-          <Link href={`${href}/invest`} className={"relative z-10 inline-flex items-center gap-1 font-semibold sm:hidden " + (seeking ? "text-success" : "text-fg")}>
-            <span aria-hidden className="text-border">•</span>
-            {d.invest.cta} →
-          </Link>
+          {seeking && (
+            <Link href="/crowdfunding" className="relative z-10 inline-flex items-center gap-1 font-semibold text-success hover:underline">
+              <span aria-hidden className="text-border">•</span>
+              {fill(d.invest.seeking, { amount: formatMoneyShort(startup.fundingNeed ?? 0, locale) })}
+            </Link>
+          )}
+          {startup._count.comments > 0 && (
+            <span className="inline-flex items-center gap-1">
+              <span aria-hidden className="text-border">•</span>💬 {startup._count.comments}
+            </span>
+          )}
           {startup.githubStars > 0 && (
             <span className="hidden items-center gap-1 sm:inline-flex">
               <span aria-hidden className="text-border">•</span>
@@ -108,25 +118,6 @@ export function StartupRow({
           )}
         </div>
       </div>
-
-      <Link
-        href={`${href}/invest`}
-        className="relative z-10 hidden shrink-0 flex-col items-end gap-1 text-right leading-tight sm:flex"
-      >
-        <span className={seeking ? "text-[11px] font-semibold text-success" : "text-[11px] text-muted"}>
-          {seeking ? fill(d.invest.seeking, { amount: formatMoneyShort(startup.fundingNeed ?? 0, locale) }) : d.invest.notSeeking}
-        </span>
-        <span
-          className={
-            "rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors " +
-            (seeking
-              ? "border-success/40 bg-success/10 text-success hover:bg-success hover:text-white"
-              : "border-border text-fg hover:border-fg/40")
-          }
-        >
-          {d.invest.cta}
-        </span>
-      </Link>
 
       <VoteButton startupId={startup.id} count={startup.votesCount} voted={voted} />
     </article>

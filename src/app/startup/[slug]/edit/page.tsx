@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/session";
 import { listTags } from "@/lib/queries";
 import { updateStartup } from "@/app/actions/startup";
 import { StartupForm } from "@/components/StartupForm";
+import { parseFundingBreakdown } from "@/lib/funding";
 import { ImageUploader } from "@/components/ImageUploader";
 import { parseRoadmap } from "@/components/Roadmap";
 import { canManageStartup } from "@/lib/access";
@@ -39,7 +40,7 @@ export default async function EditStartupPage({ params, searchParams }: { params
       <ImageUploader startupId={startup.id} name={startup.name} logoUrl={startup.logoUrl} coverUrl={startup.coverUrl} />
       <StartupForm
         hideImageUrls
-        initialTab={(["main", "business", "api", "design"] as const).find((t) => t === searchParams?.tab) ?? "main"}
+        initialTab={(["main", "invest", "product", "team", "api", "design"] as const).find((t) => t === searchParams?.tab) ?? "main"}
         action={updateStartup.bind(null, startup.id)}
         tags={tags}
         submitLabel={d.form.submitEdit}
@@ -65,7 +66,14 @@ export default async function EditStartupPage({ params, searchParams }: { params
           implDays: num(startup.implDays),
           fundingNeed: num(startup.fundingNeed),
           fundingNeedDesc: startup.fundingNeedDesc ?? "",
-          walletAddress: startup.walletAddress ?? "",
+          fundingBreakdown: parseFundingBreakdown(startup.fundingBreakdown).map((r) => ({ item: r.item, amount: String(r.amount) })),
+          fundingContact: startup.fundingContact ?? "",
+          buildMonths: num(startup.buildMonths),
+          killerFeatures: startup.killerFeatures ?? "",
+          secretSauce: startup.secretSauce ?? "",
+          teamInfo: startup.teamInfo ?? "",
+          hiring: startup.hiring ?? "",
+          compensation: startup.compensation ?? "",
           apiStatus: pick(startup.apiStatus, API_STATUSES, "NONE"),
           apiTypes: startup.apiTypes,
           apiDocsUrl: startup.apiDocsUrl ?? "",

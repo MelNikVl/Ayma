@@ -22,9 +22,13 @@ async function githubFields(githubUrl: string | null) {
 }
 
 function dataFromInput(input: StartupInput) {
-  const { tagIds: _tagIds, roadmap, ...rest } = input;
+  const { tagIds: _tagIds, roadmap, fundingBreakdown, ...rest } = input;
   void _tagIds;
-  return { ...rest, roadmap: roadmap.length ? (roadmap as Prisma.InputJsonValue) : Prisma.DbNull };
+  return {
+    ...rest,
+    roadmap: roadmap.length ? (roadmap as Prisma.InputJsonValue) : Prisma.DbNull,
+    fundingBreakdown: fundingBreakdown.length ? (fundingBreakdown as Prisma.InputJsonValue) : Prisma.DbNull,
+  };
 }
 
 export async function createStartup(_prev: FormState, formData: FormData): Promise<FormState> {
