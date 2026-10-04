@@ -38,6 +38,9 @@ model User {
   collabsReceived CollabRequest[]  @relation("CollabToUser")
   createdAt       DateTime         @default(now())
   cryptoDonations CryptoDonation[]
+  company         String?          @db.VarChar(80) // для заказчиков
+  jobs            Job[]            @relation("JobAuthor")
+  jobResponses    JobResponse[]
 }
 
 model Startup {
@@ -110,8 +113,9 @@ model Startup {
   walletAddress   String?
   cryptoDonations CryptoDonation[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  jobResponses JobResponse[]
 
   @@index([status])
   @@index([slug])
@@ -291,4 +295,61 @@ model CryptoDonation {
   confirmedAt DateTime?
 
   @@index([startupId, status])
+}
+
+enum JobStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+  CLOSED
+}
+
+enum JobResponseStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
+/// Задача от заказчика на бирже: «нужна вот такая фича»
+model Job {
+  id             String        @id @default(cuid())
+  authorId       String
+  author         User          @relation("JobAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  title          String        @db.VarChar(120)
+  description    String
+  categories     String[]
+  company        String?       @db.VarChar(80)
+  budgetMin      Int? // ₸, null — договорная
+  budgetMax      Int?
+  deadlineDays   Int?
+  contact        String?       @db.VarChar(200) // видят только выбранные исполнители
+  status         JobStatus     @default(OPEN)
+  hidden         Boolean       @default(false) // скрыто модератором
+  responsesCount Int           @default(0)
+  viewsCount     Int           @default(0)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  responses      JobResponse[]
+
+  @@index([status, createdAt])
+  @@index([authorId])
+}
+
+/// Отклик разработчика на задачу
+model JobResponse {
+  id        String            @id @default(cuid())
+  jobId     String
+  job       Job               @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startupId String? // отклик от имени своего проекта
+  startup   Startup?          @relation(fields: [startupId], references: [id], onDelete: SetNull)
+  message   String
+  price     Int? // ₸
+  days      Int?
+  status    JobResponseStatus @default(PENDING)
+  createdAt DateTime          @default(now())
+
+  @@unique([jobId, userId])
+  @@index([userId])
 }

@@ -16,6 +16,8 @@ import { getI18n } from "@/i18n/server";
 import { fill, formatNumber, formatPrice, plural } from "@/i18n/format";
 import { StartupCard } from "@/components/StartupCard";
 import { StartupRow } from "@/components/StartupRow";
+import { JobCard } from "@/components/JobCard";
+import { latestJobs, openJobsCount } from "@/lib/jobs";
 import { TagFilter } from "@/components/TagFilter";
 import { CatalogControls } from "@/components/CatalogControls";
 import { Pagination } from "@/components/Pagination";
@@ -49,12 +51,14 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
   const view = one(searchParams.view) === "grid" ? "grid" : "list";
 
   const user = await getCurrentUser();
-  const [tags, result, stats, spot, side] = await Promise.all([
+  const [tags, result, stats, spot, side, jobs, jobsOpen] = await Promise.all([
     listCatalogTags(),
     listStartups({ q, tag, sort, page, filters }),
     catalogStats(),
     isFiltered ? Promise.resolve(null) : spotlight(),
     homeSidebar(),
+    latestJobs(3),
+    openJobsCount(),
   ]);
   const voted = await userVotes(user?.id, [...result.items.map((i) => i.id), ...(spot ? [spot.item.id] : [])]);
   const params = {
@@ -133,6 +137,23 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
 
       <div className="mx-auto grid max-w-7xl grid-cols-1 gap-8 px-4 pb-8 pt-6 sm:px-6 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div className="min-w-0">
+        {!isFiltered && (
+          <Link
+            href="/business"
+            className="group mb-5 flex items-center gap-3 rounded-2xl border border-accent/25 bg-accent/[0.06] px-4 py-3 text-sm transition-colors hover:bg-accent/10"
+          >
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-accent text-white">💼</span>
+            <span className="min-w-0 flex-1">
+              <span className="font-semibold">{d.biz.devBanner}</span>
+              {jobsOpen > 0 && (
+                <span className="ml-2 text-muted">
+                  · {d.biz.jobsBanner}: <b className="tabular-nums text-fg">{jobsOpen}</b>
+                </span>
+              )}
+            </span>
+            <span aria-hidden className="text-accent transition-transform group-hover:translate-x-0.5">→</span>
+          </Link>
+        )}
         <TagFilter tags={tags} active={tag} params={params} />
         <div className="mt-4">
           <CatalogControls sort={sort} filters={filters} params={{ ...params, tag }} />
@@ -225,6 +246,23 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
             <Link href={catalogHref({ sort: "week" })} className="mt-2 block text-center text-xs font-semibold text-accent hover:underline">
               {d.home.sideAll}
             </Link>
+          </section>
+
+          <section className="card p-4">
+            <h3 className="flex items-center gap-2 text-sm font-bold">💼 {d.jobs.latest}</h3>
+            {jobs.length === 0 ? (
+              <p className="mt-2 text-xs text-muted">{d.jobs.emptyText}</p>
+            ) : (
+              <div className="-mx-1.5 mt-2 divide-y divide-border/50">
+                {jobs.map((j) => (
+                  <JobCard key={j.id} job={j} compact />
+                ))}
+              </div>
+            )}
+            <div className="mt-2 flex items-center justify-between text-xs font-semibold">
+              <Link href="/jobs" className="text-accent hover:underline">{d.jobs.seeAll}</Link>
+              <Link href="/jobs/new" className="text-muted hover:text-fg">+ {d.jobs.post}</Link>
+            </div>
           </section>
 
           <section className="relative overflow-hidden rounded-2xl bg-fg p-5 text-bg">

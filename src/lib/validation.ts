@@ -204,6 +204,43 @@ export const collabSchema = z
   })
   .refine((v) => Boolean(v.toStartupId) !== Boolean(v.toUserId), { message: "required", path: ["message"] });
 
+export const JOB_CATEGORIES = [
+  "bot",
+  "agent",
+  "automation",
+  "analytics",
+  "integration",
+  "webapp",
+  "parsing",
+  "voice",
+  "vision",
+  "other",
+] as const;
+
+export const jobSchema = z
+  .object({
+    title: z.string().trim().min(5, "min5").max(120, "tooLong"),
+    description: z.string().trim().min(30, "min30").max(5000, "tooLong"),
+    categories: z.array(z.enum(JOB_CATEGORIES)).min(1, "required").max(3, "max3"),
+    company: optionalText(80),
+    budgetMin: optionalInt(1_000_000_000),
+    budgetMax: optionalInt(1_000_000_000),
+    deadlineDays: optionalInt(365),
+    contact: z.string().trim().min(3, "required").max(200, "tooLong"),
+  })
+  .refine((v) => v.budgetMin === null || v.budgetMax === null || v.budgetMin <= v.budgetMax, {
+    message: "budgetRange",
+    path: ["budgetMax"],
+  });
+
+export const jobResponseSchema = z.object({
+  jobId: z.string().min(1),
+  startupId: z.string().nullable(),
+  message: z.string().trim().min(20, "min20").max(2000, "tooLong"),
+  price: optionalInt(1_000_000_000),
+  days: optionalInt(365),
+});
+
 /** Сообщение — ключ словаря `msg`, ошибки полей — ключи словаря `errors`. */
 export type FormState = {
   ok: boolean;

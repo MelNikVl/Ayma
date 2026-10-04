@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { myJobResponses, myJobs } from "@/lib/jobs";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
 import { MAX_MEMBERS } from "@/lib/access";
 import { displayName } from "@/lib/format";
 import { levelFor } from "@/lib/levels";
 import { getI18n } from "@/i18n/server";
-import { fill, formatCompact, formatPrice, formatRelative } from "@/i18n/format";
+import { fill, formatCompact, formatPrice, formatRelative, plural } from "@/i18n/format";
 import { refreshGithub } from "@/app/actions/startup";
 import { cancelMyPreOrder, setPreOrderStatus } from "@/app/actions/preorder";
 import { approveClaim, rejectClaim, removeMember } from "@/app/actions/team";
@@ -100,6 +101,7 @@ export default async function DashboardPage() {
     }),
   ]);
 
+  const [jobsMine, jobResps] = await Promise.all([myJobs(user.id), myJobResponses(user.id)]);
   const pendingIncoming = incoming.filter((o) => o.status === "PENDING").length;
   const collabStatus = (s: string) => (s === "ACCEPTED" ? d.collab.accepted : s === "DECLINED" ? d.collab.declined : d.collab.pending);
 
@@ -139,6 +141,64 @@ export default async function DashboardPage() {
           <Link href="/startup/new" className="btn-primary">{d.dashboard.add}</Link>
         </div>
       </div>
+
+      {/* Биржа: мои задачи и отклики */}
+      <section className="grid gap-6 lg:grid-cols-2" id="jobs">
+        <div>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-lg font-bold">{d.jobs.myJobs}</h2>
+            <Link href="/jobs/new" className="text-sm font-semibold text-accent hover:underline">+ {d.jobs.post}</Link>
+          </div>
+          {jobsMine.length === 0 ? (
+            <div className="card p-5 text-sm text-muted">{d.jobs.noMyJobs}</div>
+          ) : (
+            <div className="card divide-y divide-border/50 p-1.5">
+              {jobsMine.map((j) => (
+                <Link key={j.id} href={`/jobs/${j.id}`} className="flex items-center gap-3 rounded-xl p-3 hover:bg-surface-2/70">
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-semibold">{j.title}</span>
+                    <span className="text-xs text-muted">{d.jobs.status[j.status]} · {formatRelative(j.createdAt, locale)}</span>
+                  </span>
+                  <span className="shrink-0 rounded-full bg-accent/10 px-2 py-0.5 text-xs font-bold tabular-nums text-accent">
+                    {j.responsesCount} {plural(j.responsesCount, d.jobs.respForms, locale)}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+        <div>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-lg font-bold">{d.jobs.myResponses}</h2>
+            <Link href="/jobs" className="text-sm font-semibold text-accent hover:underline">{d.jobs.seeAll}</Link>
+          </div>
+          {jobResps.length === 0 ? (
+            <div className="card p-5 text-sm text-muted">{d.jobs.noMyResponses}</div>
+          ) : (
+            <div className="card divide-y divide-border/50 p-1.5">
+              {jobResps.map((r) => (
+                <Link key={r.id} href={`/jobs/${r.job.id}`} className="flex items-center gap-3 rounded-xl p-3 hover:bg-surface-2/70">
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-semibold">{r.job.title}</span>
+                    <span className="text-xs text-muted">
+                      {r.price ? `${formatPrice(r.price, locale)} · ` : ""}
+                      {formatRelative(r.createdAt, locale)}
+                    </span>
+                  </span>
+                  <span
+                    className={
+                      "shrink-0 rounded-full px-2 py-0.5 text-xs font-bold " +
+                      (r.status === "ACCEPTED" ? "bg-success/15 text-success" : r.status === "DECLINED" ? "bg-fg/5 text-muted" : "bg-accent/10 text-accent")
+                    }
+                  >
+                    {d.jobs.rstatus[r.status]}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
 
       {/* Мои проекты */}
       <section>

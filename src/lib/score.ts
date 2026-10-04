@@ -187,6 +187,7 @@ export function computeUserScore(u: {
   projectScores: number[];
   paidCount: number;
   acceptedCollabs: number;
+  jobsDone?: number; // выполненные заказы с биржи
   openToCollab: boolean;
   bio: string | null;
   skills: string[];
@@ -198,7 +199,7 @@ export function computeUserScore(u: {
   const top = sorted[0] ?? 0;
   const rest = sorted.slice(1).reduce((a, b) => a + b, 0);
   const projects = top * 0.4 + rest * 0.1;
-  const support = 2 * u.paidCount;
+  const support = 2 * u.paidCount + 4 * (u.jobsDone ?? 0);
   const collab = 3 * u.acceptedCollabs + (u.openToCollab ? 3 : 0);
   const profile =
     (u.bio && u.bio.length >= 30 ? 3 : 0) +
@@ -231,7 +232,7 @@ export async function recomputeUserScores(userIds?: string[]): Promise<number> {
   });
   for (const u of users) {
     const startupIds = u.memberships.map((m) => m.startup.id);
-    const [paidCount, acceptedCollabs] = await Promise.all([
+    const [paidCount, acceptedCollabs, jobsDone] = await Promise.all([
       startupIds.length
         ? prisma.preOrder.count({ where: { status: "PAID", startupId: { in: startupIds } } })
         : Promise.resolve(0),
@@ -241,12 +242,14 @@ export async function recomputeUserScores(userIds?: string[]): Promise<number> {
           OR: [{ fromUserId: u.id }, { toUserId: u.id }, ...(startupIds.length ? [{ toStartupId: { in: startupIds } }] : [])],
         },
       }),
+      prisma.jobResponse.count({ where: { userId: u.id, status: "ACCEPTED", job: { status: "DONE" } } }),
     ]);
     const { total, parts } = computeUserScore({
       ...u,
       projectScores: u.memberships.map((m) => m.startup.score),
       paidCount,
       acceptedCollabs,
+      jobsDone,
     });
     await prisma.user.update({ where: { id: u.id }, data: { score: total, scoreData: { ...parts } } });
   }

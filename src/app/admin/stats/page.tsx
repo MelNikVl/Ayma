@@ -59,6 +59,8 @@ export default async function StatsPage() {
       prisma.preOrder.count({ where: { createdAt: { gte: since } } }),
       prisma.preOrder.count({ where: { createdAt: { gte: since }, status: "PAID" } }),
       prisma.collabRequest.count({ where: { createdAt: { gte: since } } }),
+      prisma.job.count({ where: { createdAt: { gte: since } } }),
+      prisma.jobResponse.count({ where: { createdAt: { gte: since } } }),
     ]),
   ]);
 
@@ -74,7 +76,7 @@ export default async function StatsPage() {
   const total = { views: Number(totals[0]?.views ?? 0), visitors: Number(totals[0]?.visitors ?? 0) };
   const todayT = { views: Number(today[0]?.views ?? 0), visitors: Number(today[0]?.visitors ?? 0) };
   const n = (v: number) => formatNumber(v, locale);
-  const [newUsers, claims, votes, preorders, paid, collabs] = funnel;
+  const [newUsers, claims, votes, preorders, paid, collabs, jobsNew, jobResps] = funnel;
 
   const tiles: [string, number][] = [
     [d.stats.visitors, total.visitors],
@@ -86,6 +88,8 @@ export default async function StatsPage() {
     [d.stats.preorders, preorders],
     [d.stats.paid, paid],
     [d.stats.collabs, collabs],
+    [d.jobs.nav, jobsNew],
+    [d.jobs.responsesTitle, jobResps],
   ];
 
   return (
