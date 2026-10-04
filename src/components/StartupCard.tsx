@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { StartupCardData } from "@/lib/queries";
 import { getI18n } from "@/i18n/server";
-import { formatPrice } from "@/i18n/format";
+import { formatMoneyShort } from "@/i18n/format";
 import { tTag } from "@/i18n/dictionaries";
 import { StartupLogo } from "./StartupLogo";
 import { TagBadge } from "./TagBadge";
@@ -21,7 +21,7 @@ export function StartupCard({
 }) {
   const { d, locale } = getI18n();
   const href = `/startup/${startup.slug}`;
-  const canPreorder = startup.preOrderEnabled && startup.preOrderPrice > 0;
+  const seeking = (startup.fundingNeed ?? 0) > 0;
   const claimed = startup._count.members > 0;
   const accent = startup.pageAccent && /^#[0-9a-fA-F]{6}$/.test(startup.pageAccent) ? startup.pageAccent : null;
 
@@ -65,22 +65,15 @@ export function StartupCard({
           </div>
         )}
         <div className="flex items-center justify-between gap-2 border-t border-border/60 pt-3">
-          {canPreorder ? (
-            <>
-              <div className="min-w-0 leading-tight">
-                <div className="text-[11px] uppercase tracking-wide text-muted">{d.card.preorderFrom}</div>
-                <div className="truncate text-lg font-bold tabular-nums">{formatPrice(startup.preOrderPrice, locale)}</div>
-              </div>
-              <Link href={`${href}/sponsor`} className="btn-primary relative z-10 shrink-0 px-3.5">
-                {d.card.sponsor}
-              </Link>
-            </>
-          ) : (
-            <>
-              <span className="text-sm text-muted">{d.card.soon}</span>
-              <Link href={href} className="btn-secondary btn-sm relative z-10">{d.card.more}</Link>
-            </>
-          )}
+          <div className="min-w-0 leading-tight">
+            <div className="text-[11px] uppercase tracking-wide text-muted">{seeking ? d.invest.need : d.invest.title}</div>
+            <div className={seeking ? "text-base font-bold tabular-nums text-success" : "text-xs text-muted"}>
+              {seeking ? formatMoneyShort(startup.fundingNeed ?? 0, locale) : d.invest.notSeeking}
+            </div>
+          </div>
+          <Link href={`${href}/invest`} className={(seeking ? "btn-primary" : "btn-secondary") + " relative z-10 shrink-0 px-3.5"}>
+            {d.invest.cta}
+          </Link>
         </div>
       </div>
     </article>

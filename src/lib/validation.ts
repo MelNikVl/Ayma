@@ -245,6 +245,15 @@ export const jobResponseSchema = z.object({
   days: optionalInt(365),
 });
 
+export const INVEST_FORMATS = ["equity", "safe", "loan", "grant", "other"] as const;
+
+export const investSchema = z.object({
+  amount: intFromForm(10_000, 100_000_000_000),
+  format: z.enum(INVEST_FORMATS),
+  contact: z.string().trim().min(3, "required").max(200, "tooLong"),
+  message: optionalText(1000),
+});
+
 /** Сообщение — ключ словаря `msg`, ошибки полей — ключи словаря `errors`. */
 export type FormState = {
   ok: boolean;

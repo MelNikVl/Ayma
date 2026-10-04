@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { StartupCardData } from "@/lib/queries";
 import { getI18n } from "@/i18n/server";
-import { formatPrice, formatNumber } from "@/i18n/format";
+import { fill, formatMoneyShort, formatNumber } from "@/i18n/format";
 import { tTag } from "@/i18n/dictionaries";
 import { StartupLogo } from "./StartupLogo";
 import { VoteButton } from "./VoteButton";
@@ -25,7 +25,7 @@ export function StartupRow({
   const href = `/startup/${startup.slug}`;
   const claimed = startup._count.members > 0;
   const hasApi = startup.apiStatus === "PUBLIC" || startup.apiStatus === "BETA";
-  const canPreorder = startup.preOrderEnabled && startup.preOrderPrice > 0;
+  const seeking = (startup.fundingNeed ?? 0) > 0;
   const accent = startup.pageAccent && /^#[0-9a-fA-F]{6}$/.test(startup.pageAccent) ? startup.pageAccent : undefined;
 
   return (
@@ -96,6 +96,10 @@ export function StartupRow({
               <HandshakeIcon className="h-3.5 w-3.5" /> {d.row.collab}
             </span>
           )}
+          <Link href={`${href}/invest`} className={"relative z-10 inline-flex items-center gap-1 font-semibold sm:hidden " + (seeking ? "text-success" : "text-fg")}>
+            <span aria-hidden className="text-border">•</span>
+            {d.invest.cta} →
+          </Link>
           {startup.githubStars > 0 && (
             <span className="hidden items-center gap-1 sm:inline-flex">
               <span aria-hidden className="text-border">•</span>
@@ -105,15 +109,24 @@ export function StartupRow({
         </div>
       </div>
 
-      {canPreorder && (
-        <Link
-          href={`${href}/sponsor`}
-          className="relative z-10 hidden shrink-0 flex-col items-end rounded-xl px-3 py-1.5 text-right leading-tight transition-colors hover:bg-accent/10 md:flex"
+      <Link
+        href={`${href}/invest`}
+        className="relative z-10 hidden shrink-0 flex-col items-end gap-1 text-right leading-tight sm:flex"
+      >
+        <span className={seeking ? "text-[11px] font-semibold text-success" : "text-[11px] text-muted"}>
+          {seeking ? fill(d.invest.seeking, { amount: formatMoneyShort(startup.fundingNeed ?? 0, locale) }) : d.invest.notSeeking}
+        </span>
+        <span
+          className={
+            "rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors " +
+            (seeking
+              ? "border-success/40 bg-success/10 text-success hover:bg-success hover:text-white"
+              : "border-border text-fg hover:border-fg/40")
+          }
         >
-          <span className="text-[10px] uppercase tracking-wide text-muted">{d.card.preorderFrom}</span>
-          <span className="text-sm font-bold tabular-nums">{formatPrice(startup.preOrderPrice, locale)}</span>
-        </Link>
-      )}
+          {d.invest.cta}
+        </span>
+      </Link>
 
       <VoteButton startupId={startup.id} count={startup.votesCount} voted={voted} />
     </article>

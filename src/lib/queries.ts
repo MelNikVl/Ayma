@@ -245,3 +245,13 @@ export async function homeSidebar() {
   }
   return { top: top.map((s) => ({ ...s, week: week.get(s.id) ?? 0 })), byWeek, collab, joined };
 }
+
+/** Сумма и число активных заявок инвесторов по проекту */
+export async function investStats(startupId: string) {
+  const agg = await prisma.investInterest.aggregate({
+    where: { startupId, status: { in: ["NEW", "IN_TALKS"] } },
+    _sum: { amount: true },
+    _count: true,
+  });
+  return { interested: agg._sum.amount ?? 0, investors: agg._count };
+}

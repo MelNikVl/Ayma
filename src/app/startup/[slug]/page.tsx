@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
-import { getFundingStats, weeklyVotes } from "@/lib/queries";
+import { getFundingStats, investStats, weeklyVotes } from "@/lib/queries";
 import { fetchRecentCommits, fetchRepoInfo, parseGithubUrl } from "@/lib/github";
 import { displayName } from "@/lib/format";
 import { MAX_MEMBERS } from "@/lib/access";
@@ -12,7 +12,7 @@ import { STARTUP_SCORE_MAX, type StartupScoreParts } from "@/lib/score";
 import { env } from "@/lib/env";
 import { cn } from "@/lib/cn";
 import { getI18n } from "@/i18n/server";
-import { fill, formatCompact, formatDate, formatPrice, formatRelative, plural } from "@/i18n/format";
+import { fill, formatCompact, formatDate, formatMoneyShort, formatPrice, formatRelative, plural } from "@/i18n/format";
 import { tTag } from "@/i18n/dictionaries";
 import { claimStartup } from "@/app/actions/team";
 import { StartupLogo } from "@/components/StartupLogo";
@@ -97,7 +97,7 @@ export default async function StartupPage({ params, searchParams }: Props) {
   const meta = parseRepoMeta(startup.repoMeta);
   const repo = parseGithubUrl(startup.githubUrl);
   const roadmap = parseRoadmap(startup.roadmap);
-  const [funding, repoInfo, commits, voted, week, pendingClaim, myStartups, crypto] = await Promise.all([
+  const [funding, repoInfo, commits, voted, week, pendingClaim, myStartups, crypto, invest] = await Promise.all([
     getFundingStats(startup.id),
     repo ? fetchRepoInfo(repo) : Promise.resolve(null),
     repo && !meta?.commits?.length ? fetchRecentCommits(repo, 5) : Promise.resolve([]),
@@ -118,12 +118,15 @@ export default async function StartupPage({ params, searchParams }: Props) {
         })
       : Promise.resolve([]),
     cryptoStats(startup.id),
+    investStats(startup.id),
   ]);
 
   const stars = repoInfo?.stars ?? startup.githubStars;
   const lastPush = repoInfo?.pushedAt ?? startup.githubLastCommit;
   const canPreorder = startup.preOrderEnabled && startup.preOrderPrice > 0 && startup.status === "APPROVED";
   const sponsorHref = `/startup/${startup.slug}/sponsor`;
+  const seeking = (startup.fundingNeed ?? 0) > 0;
+  const investPct = seeking ? Math.min(100, Math.round((invest.interested / (startup.fundingNeed ?? 1)) * 100)) : 0;
   const loginHref = `/login?next=${encodeURIComponent(`/startup/${startup.slug}`)}`;
   const accentRgb = hexToRgb(startup.pageAccent);
   const layout = startup.pageLayout;
@@ -418,42 +421,86 @@ export default async function StartupPage({ params, searchParams }: Props) {
   /* ---------- Правая колонка ---------- */
   const asideCards = (
     <>
-      <div className="card p-5 sm:p-6">
-        {canPreorder ? (
+      {/* Инвестиции */}
+      <div className="card p-5 sm:p-6" id="invest">
+        {seeking ? (
           <>
-            <div className="text-xs uppercase tracking-wide text-muted">{d.startup.preorderFrom}</div>
-            <div className="mt-1 text-3xl font-extrabold tabular-nums">{formatPrice(startup.preOrderPrice, locale)}</div>
-            {startup.preOrderDesc && <p className="mt-3 whitespace-pre-line text-sm text-muted">{startup.preOrderDesc}</p>}
-            {startup.preOrderGoal > 0 && (
-              <div className="mt-5"><ProgressBar raised={funding.raised} goal={startup.preOrderGoal} /></div>
-            )}
-            {!isMember ? (
-              <Link href={sponsorHref} className="btn-primary mt-5 w-full py-3 text-base">{d.card.sponsor}</Link>
-            ) : (
-              <Link href="/dashboard" className="btn-secondary mt-5 w-full">{d.startup.toDashboard}</Link>
-            )}
-            {!claimed && <p className="mt-3 rounded-lg bg-warning/10 px-3 py-2 text-xs">{d.startup.unclaimedNote}</p>}
-            <p className="mt-3 text-center text-xs text-muted">
-              {d.startup.notInvestment} <Link href="/terms" className="underline">{d.startup.terms}</Link>
-            </p>
+            <div className="text-xs font-semibold uppercase tracking-wide text-success">{d.invest.need}</div>
+            <div className="mt-1 text-3xl font-extrabold tabular-nums">{formatPrice(startup.fundingNeed ?? 0, locale)}</div>
+            {startup.fundingNeedDesc && <p className="mt-3 whitespace-pre-line text-sm text-muted">{startup.fundingNeedDesc}</p>}
+            <div className="mt-5">
+              <div className="h-2 overflow-hidden rounded-full bg-surface-2">
+                <div className="h-full rounded-full bg-success transition-all" style={{ width: `${investPct}%` }} />
+              </div>
+              <div className="mt-2 flex justify-between gap-2 text-xs text-muted">
+                <span>
+                  {d.invest.interested}: <b className="text-fg">{formatPrice(invest.interested, locale)}</b>
+                </span>
+                <span className="tabular-nums">
+                  {invest.investors} {plural(invest.investors, d.invest.investorsForms, locale)}
+                </span>
+              </div>
+            </div>
           </>
         ) : (
-          <div className="text-center">
-            <div className="text-sm font-semibold">{d.startup.preorderClosed}</div>
-            <p className="mt-1 text-sm text-muted">{d.startup.preorderClosedText}</p>
-          </div>
+          <>
+            <div className="text-xs uppercase tracking-wide text-muted">{d.invest.title}</div>
+            <div className="mt-1 font-semibold">{d.invest.notSeekingLong}</div>
+            {!canManage && <p className="mt-1 text-sm text-muted">{d.invest.notSeekingText}</p>}
+            {invest.investors > 0 && (
+              <p className="mt-2 text-xs text-muted">
+                {d.invest.interested}: <b className="text-fg">{formatPrice(invest.interested, locale)}</b> · {invest.investors}{" "}
+                {plural(invest.investors, d.invest.investorsForms, locale)}
+              </p>
+            )}
+          </>
         )}
-        {funding.sponsors.length > 0 && (
-          <div className="mt-5 border-t border-border/60 pt-4">
-            <div className="mb-2 text-xs font-medium text-muted">{d.startup.alreadySupported}</div>
-            <div className="flex -space-x-2">
-              {funding.sponsors.slice(0, 10).map((s) => (
-                <Avatar key={s.id} user={s} size={32} className="ring-2 ring-surface" />
+        {canManage ? (
+          <div className="mt-5 flex flex-col gap-2">
+            <Link href="/dashboard#investors" className="btn-secondary w-full">{d.invest.dashTitle} ({invest.investors})</Link>
+            {!seeking && (
+              <Link href={`/startup/${startup.slug}/edit?tab=business#fundingNeed`} className="text-center text-sm font-semibold text-accent hover:underline">
+                {d.invest.setNeed} →
+              </Link>
+            )}
+          </div>
+        ) : (
+          <Link
+            href={`/startup/${startup.slug}/invest`}
+            className={(seeking ? "btn-primary py-3 text-base" : "btn-secondary py-2.5") + " mt-5 w-full"}
+          >
+            {seeking ? d.invest.cta : d.invest.interestAnyway}
+          </Link>
+        )}
+        <p className="mt-3 text-[11px] leading-snug text-muted">{d.invest.disclaimer}</p>
+      </div>
+
+      {/* Предзаказ услуг — вторичное действие */}
+      {canPreorder && (
+        <div className="card p-5 sm:p-6">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="p-head text-base font-bold">{d.invest.preorderTitle}</h2>
+              <div className="mt-0.5 text-sm text-muted">{fill(d.invest.preorderFrom, { price: formatPrice(startup.preOrderPrice, locale) })}</div>
+            </div>
+            {!isMember && (
+              <Link href={sponsorHref} className="btn-secondary btn-sm shrink-0">{d.card.sponsor}</Link>
+            )}
+          </div>
+          {startup.preOrderDesc && <p className="mt-3 line-clamp-3 whitespace-pre-line text-sm text-muted">{startup.preOrderDesc}</p>}
+          {startup.preOrderGoal > 0 && (
+            <div className="mt-4"><ProgressBar raised={funding.raised} goal={startup.preOrderGoal} /></div>
+          )}
+          {funding.sponsors.length > 0 && (
+            <div className="mt-4 flex -space-x-2">
+              {funding.sponsors.slice(0, 10).map((sp) => (
+                <Avatar key={sp.id} user={sp} size={28} className="ring-2 ring-surface" />
               ))}
             </div>
-          </div>
-        )}
-      </div>
+          )}
+          {!claimed && <p className="mt-3 rounded-lg bg-warning/10 px-3 py-2 text-xs">{d.startup.unclaimedNote}</p>}
+        </div>
+      )}
 
       {startup.walletAddress && startup.status === "APPROVED" ? (
         <div className="card p-5 sm:p-6" id="usdt">
@@ -502,7 +549,7 @@ export default async function StartupPage({ params, searchParams }: Props) {
         <Link href="/rating#how" className="mt-4 block text-xs text-accent hover:underline">{d.score.howTitle} →</Link>
       </div>
 
-      {(startup.implPrice || startup.implDays || startup.fundingNeed) && (
+      {(startup.implPrice || startup.implDays) && (
         <div className="card space-y-4 p-5 sm:p-6">
           {(startup.implPrice || startup.implDays) && (
             <div>
@@ -515,13 +562,6 @@ export default async function StartupPage({ params, searchParams }: Props) {
               </div>
             </div>
           )}
-          {startup.fundingNeed ? (
-            <div>
-              <h3 className="p-head mb-2 flex items-center gap-2 font-bold"><CoinsIcon className="h-4 w-4" /> {d.startup.funding}</h3>
-              <div className="text-2xl font-extrabold tabular-nums">{formatPrice(startup.fundingNeed, locale)}</div>
-              {startup.fundingNeedDesc && <p className="mt-2 whitespace-pre-line text-sm text-muted">{startup.fundingNeedDesc}</p>}
-            </div>
-          ) : null}
         </div>
       )}
 
@@ -645,14 +685,18 @@ export default async function StartupPage({ params, searchParams }: Props) {
         )}
       </div>
 
-      {canPreorder && !isMember && (
+      {!canManage && startup.status === "APPROVED" && (
         <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-surface/95 px-4 py-3 backdrop-blur lg:hidden">
           <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
-            <div className="leading-tight">
-              <div className="text-[11px] text-muted">{d.card.preorderFrom}</div>
-              <div className="text-lg font-bold tabular-nums">{formatPrice(startup.preOrderPrice, locale)}</div>
+            <div className="min-w-0 leading-tight">
+              <div className="text-[11px] text-muted">{d.invest.title}</div>
+              <div className={seeking ? "truncate text-lg font-bold tabular-nums text-success" : "truncate text-sm font-semibold"}>
+                {seeking ? formatMoneyShort(startup.fundingNeed ?? 0, locale) : d.invest.notSeeking}
+              </div>
             </div>
-            <Link href={sponsorHref} className="btn-primary flex-1 py-3 sm:flex-none sm:px-8">{d.card.sponsor}</Link>
+            <Link href={`/startup/${startup.slug}/invest`} className={(seeking ? "btn-primary" : "btn-secondary") + " flex-1 py-3 sm:flex-none sm:px-8"}>
+              {d.invest.cta}
+            </Link>
           </div>
         </div>
       )}

@@ -13,7 +13,7 @@ import {
 } from "@/lib/queries";
 import { getCurrentUser } from "@/lib/session";
 import { getI18n } from "@/i18n/server";
-import { fill, formatNumber, formatPrice, plural } from "@/i18n/format";
+import { fill, formatMoneyShort, formatNumber, plural } from "@/i18n/format";
 import { StartupCard } from "@/components/StartupCard";
 import { StartupRow } from "@/components/StartupRow";
 import { JobCard } from "@/components/JobCard";
@@ -124,7 +124,9 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
                   <p className="mt-1 line-clamp-2 text-sm text-muted">{spot.item.shortDesc}</p>
                   <div className="mt-4 flex items-center justify-between">
                     <span className="text-sm font-semibold tabular-nums">
-                      {spot.item.preOrderEnabled ? `${d.card.preorderFrom} ${formatPrice(spot.item.preOrderPrice, locale)}` : ""}
+                      {(spot.item.fundingNeed ?? 0) > 0
+                        ? fill(d.invest.seeking, { amount: formatMoneyShort(spot.item.fundingNeed ?? 0, locale) })
+                        : d.invest.notSeeking}
                     </span>
                     <VoteButton startupId={spot.item.id} count={spot.item.votesCount} voted={voted.has(spot.item.id)} />
                   </div>

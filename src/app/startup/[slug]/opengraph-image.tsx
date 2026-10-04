@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getI18n } from "@/i18n/server";
-import { formatPrice } from "@/i18n/format";
+import { fill, formatMoneyShort } from "@/i18n/format";
 import { tTag } from "@/i18n/dictionaries";
 import { OgFrame, gradientFor, ogImageSrc, renderOg, scoreHex } from "@/lib/og";
 
@@ -14,6 +14,7 @@ export default async function Image({ params }: { params: { slug: string } }) {
   const s = await prisma.startup.findUnique({
     where: { slug: params.slug },
     select: {
+      fundingNeed: true,
       name: true, shortDesc: true, logoUrl: true, score: true, votesCount: true, status: true, pageAccent: true,
       preOrderEnabled: true, preOrderPrice: true, apiStatus: true, openToCollab: true,
       tags: { select: { name: true, color: true }, take: 4 },
@@ -34,7 +35,11 @@ export default async function Image({ params }: { params: { slug: string } }) {
   ].slice(0, 4);
 
   return renderOg(
-    <OgFrame accent={accent} footer={s.preOrderEnabled ? `${d.card.preorderFrom} ${formatPrice(s.preOrderPrice, locale).replace("₸", locale === "en" ? "KZT" : "тг")}` : d.meta.title}>
+    <OgFrame accent={accent} footer={
+        (s.fundingNeed ?? 0) > 0
+          ? fill(d.invest.seeking, { amount: formatMoneyShort(s.fundingNeed ?? 0, locale).replace("₸", locale === "en" ? "KZT" : "тг") })
+          : d.meta.title
+      }>
       <div style={{ display: "flex", alignItems: "flex-start", gap: 40 }}>
         {logo ? (
           <img alt="" src={logo} width={168} height={168} style={{ borderRadius: 36, objectFit: "cover" }} />

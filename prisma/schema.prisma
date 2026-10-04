@@ -44,6 +44,7 @@ model User {
   company         String?          @db.VarChar(80) // для заказчиков
   jobs            Job[]            @relation("JobAuthor")
   jobResponses    JobResponse[]
+  investInterests InvestInterest[]
 }
 
 model Startup {
@@ -116,9 +117,10 @@ model Startup {
   walletAddress   String?
   cryptoDonations CryptoDonation[]
 
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  jobResponses JobResponse[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  jobResponses    JobResponse[]
+  investInterests InvestInterest[]
 
   @@index([status])
   @@index([slug])
@@ -355,4 +357,29 @@ model JobResponse {
 
   @@unique([jobId, userId])
   @@index([userId])
+}
+
+enum InvestStatus {
+  NEW
+  IN_TALKS
+  DECLINED
+}
+
+/// Заявка инвестора о намерении вложиться в проект (AYMA деньги не принимает)
+model InvestInterest {
+  id        String       @id @default(cuid())
+  startupId String
+  startup   Startup      @relation(fields: [startupId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount    Int // ₸
+  format    String       @default("equity") // equity | safe | loan | grant | other
+  contact   String       @db.VarChar(200)
+  message   String?      @db.VarChar(1000)
+  status    InvestStatus @default(NEW)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@unique([startupId, userId])
+  @@index([startupId, status])
 }

@@ -54,3 +54,8 @@ export function plural(n: number, forms: PluralForms, locale: Locale = "ru"): st
 export function fill(template: string, vars: Record<string, string | number>): string {
   return template.replace(/\{(\w+)\}/g, (_, k: string) => (k in vars ? String(vars[k]) : `{${k}}`));
 }
+
+/** 50 000 000 → «50 млн ₸» / «50M ₸» — для бейджей и кнопок */
+export function formatMoneyShort(value: number, locale: Locale = "ru"): string {
+  return `${new Intl.NumberFormat(INTL_TAG[locale], { notation: "compact", maximumFractionDigits: 1 }).format(value)} ₸`;
+}

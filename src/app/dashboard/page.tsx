@@ -18,6 +18,8 @@ import { Avatar } from "@/components/Avatar";
 import { ScorePill, ScoreRing } from "@/components/ScoreBadge";
 import { ProfileForm } from "@/components/ProfileForm";
 import { ResumeUploader } from "@/components/ResumeUploader";
+import { SubmitButton } from "@/components/SubmitButton";
+import { setInvestStatus } from "@/app/actions/invest";
 import { profileHref } from "@/components/UserMenu";
 import { GithubIcon } from "@/components/icons";
 
@@ -102,7 +104,24 @@ export default async function DashboardPage() {
     }),
   ]);
 
-  const [jobsMine, jobResps] = await Promise.all([myJobs(user.id), myJobResponses(user.id)]);
+  const [jobsMine, jobResps, investIn, investOut] = await Promise.all([
+    myJobs(user.id),
+    myJobResponses(user.id),
+    prisma.investInterest.findMany({
+      where: { startup: { members: { some: { userId: user.id } } } },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+      include: {
+        user: { select: { id: true, firstName: true, username: true, avatarUrl: true, githubLogin: true, linkedinUrl: true } },
+        startup: { select: { name: true, slug: true } },
+      },
+    }),
+    prisma.investInterest.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: "desc" },
+      include: { startup: { select: { name: true, slug: true, logoUrl: true } } },
+    }),
+  ]);
   const pendingIncoming = incoming.filter((o) => o.status === "PENDING").length;
   const collabStatus = (s: string) => (s === "ACCEPTED" ? d.collab.accepted : s === "DECLINED" ? d.collab.declined : d.collab.pending);
 
@@ -142,6 +161,76 @@ export default async function DashboardPage() {
           <Link href="/startup/new" className="btn-primary">{d.dashboard.add}</Link>
         </div>
       </div>
+
+      {/* Инвесторы: заявки в мои проекты */}
+      {(memberships.length > 0 || investIn.length > 0) && (
+        <section id="investors">
+          <h2 className="mb-3 text-lg font-bold">
+            {d.invest.dashTitle} <span className="font-normal text-muted">{investIn.length}</span>
+          </h2>
+          {investIn.length === 0 ? (
+            <div className="card p-5 text-sm text-muted">{d.invest.dashEmpty}</div>
+          ) : (
+            <ul className="space-y-3">
+              {investIn.map((r) => (
+                <li key={r.id} className={"card p-4 " + (r.status === "DECLINED" ? "opacity-60" : "")}>
+                  <div className="flex flex-wrap items-start gap-3">
+                    <Link href={profileHref(r.user)} className="flex min-w-0 flex-1 items-center gap-3">
+                      <Avatar user={r.user} size={40} />
+                      <span className="min-w-0">
+                        <span className="block truncate font-semibold hover:text-accent">{r.user.firstName ?? displayName(r.user)}</span>
+                        <span className="text-xs text-muted">
+                          → {r.startup.name} · {formatRelative(r.createdAt, locale)}
+                        </span>
+                      </span>
+                    </Link>
+                    <div className="text-right">
+                      <div className="text-lg font-extrabold tabular-nums">{formatPrice(r.amount, locale)}</div>
+                      <div className="text-xs text-muted">{d.invest.formats[r.format as keyof typeof d.invest.formats] ?? r.format}</div>
+                    </div>
+                  </div>
+                  {r.message && <p className="mt-3 whitespace-pre-line text-sm">{r.message}</p>}
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-border/60 pt-3 text-sm">
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-surface-2 px-2 py-0.5 text-xs font-bold">{d.invest.status[r.status]}</span>
+                      <span className="break-all font-semibold">{r.contact}</span>
+                      {r.user.linkedinUrl && (
+                        <a href={r.user.linkedinUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-accent hover:underline">LinkedIn</a>
+                      )}
+                    </span>
+                    {r.status === "NEW" && (
+                      <span className="flex gap-2">
+                        <form action={setInvestStatus.bind(null, r.id, "DECLINED")}>
+                          <SubmitButton variant="secondary" className="btn-sm">{d.invest.decline}</SubmitButton>
+                        </form>
+                        <form action={setInvestStatus.bind(null, r.id, "IN_TALKS")}>
+                          <SubmitButton className="btn-sm">{d.invest.talk}</SubmitButton>
+                        </form>
+                      </span>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+
+      {investOut.length > 0 && (
+        <section>
+          <h2 className="mb-3 text-lg font-bold">{d.invest.myTitle}</h2>
+          <div className="card divide-y divide-border/50 p-1.5">
+            {investOut.map((r) => (
+              <Link key={r.id} href={`/startup/${r.startup.slug}/invest`} className="flex items-center gap-3 rounded-xl p-3 hover:bg-surface-2/70">
+                <StartupLogo name={r.startup.name} logoUrl={r.startup.logoUrl} size={32} />
+                <span className="min-w-0 flex-1 truncate font-semibold">{r.startup.name}</span>
+                <span className="font-bold tabular-nums">{formatPrice(r.amount, locale)}</span>
+                <span className="rounded-full bg-surface-2 px-2 py-0.5 text-xs font-bold">{d.invest.status[r.status]}</span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Биржа: мои задачи и отклики */}
       <section className="grid gap-6 lg:grid-cols-2" id="jobs">
