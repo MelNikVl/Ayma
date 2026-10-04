@@ -43,6 +43,7 @@ export interface StartupFormDefaults {
   implDays: string;
   fundingNeed: string;
   fundingNeedDesc: string;
+  walletAddress: string;
   apiStatus: (typeof API_STATUSES)[number];
   apiTypes: string[];
   apiDocsUrl: string;
@@ -76,6 +77,7 @@ export const emptyStartupDefaults: StartupFormDefaults = {
   implDays: "",
   fundingNeed: "",
   fundingNeedDesc: "",
+  walletAddress: "",
   apiStatus: "NONE",
   apiTypes: [],
   apiDocsUrl: "",
@@ -99,7 +101,7 @@ const THEME_SWATCH: Record<string, [string, string]> = {
 type Tab = "main" | "business" | "api" | "design";
 const TAB_FIELDS: Record<Tab, string[]> = {
   main: ["name", "shortDesc", "fullDesc", "tagIds", "logoUrl", "coverUrl", "githubUrl", "demoUrl", "websiteUrl", "preOrderPrice", "preOrderGoal", "preOrderDesc", "paymentUrl"],
-  business: ["roadmap", "advantages", "competitors", "implPrice", "implDays", "fundingNeed", "fundingNeedDesc"],
+  business: ["roadmap", "advantages", "competitors", "implPrice", "implDays", "fundingNeed", "fundingNeedDesc", "walletAddress"],
   api: ["apiStatus", "apiTypes", "apiDocsUrl", "collabNote"],
   design: ["pageTheme", "pageAccent", "pageFont", "pageLayout"],
 };
@@ -348,6 +350,22 @@ export function StartupForm({
               <label htmlFor="fundingNeedDesc" className="label">{d.form.fundingNeedDesc}</label>
               <textarea id="fundingNeedDesc" name="fundingNeedDesc" defaultValue={defaults.fundingNeedDesc} rows={2} className="input" placeholder={d.form.fundingNeedDescPh} />
             </div>
+          </div>
+          <div>
+            <label htmlFor="walletAddress" className="label">{d.crypto.walletLabel}</label>
+            <input
+              id="walletAddress"
+              name="walletAddress"
+              defaultValue={defaults.walletAddress}
+              maxLength={42}
+              spellCheck={false}
+              autoComplete="off"
+              className="input font-mono text-sm"
+              placeholder="0x…"
+              pattern="^0x[0-9a-fA-F]{40}$"
+            />
+            <p className="mt-1 text-xs text-muted">{d.crypto.walletHint}</p>
+            <FieldError errors={e.walletAddress} />
           </div>
         </section>
       </div>

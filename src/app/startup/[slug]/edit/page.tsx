@@ -64,6 +64,7 @@ export default async function EditStartupPage({ params }: { params: { slug: stri
           implDays: num(startup.implDays),
           fundingNeed: num(startup.fundingNeed),
           fundingNeedDesc: startup.fundingNeedDesc ?? "",
+          walletAddress: startup.walletAddress ?? "",
           apiStatus: pick(startup.apiStatus, API_STATUSES, "NONE"),
           apiTypes: startup.apiTypes,
           apiDocsUrl: startup.apiDocsUrl ?? "",

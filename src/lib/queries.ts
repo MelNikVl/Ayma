@@ -204,3 +204,44 @@ export async function uniqueSlug(base: string, excludeId?: string): Promise<stri
   }
   return `${base}-${Date.now().toString(36)}`;
 }
+
+/** Боковая колонка главной: топ недели (fallback — рейтинг), ищут коллабы, недавно присоединившиеся команды */
+export async function homeSidebar() {
+  const week = await weeklyVotes();
+  const weekIds = [...week.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([id]) => id);
+  const mini = { id: true, slug: true, name: true, shortDesc: true, logoUrl: true, votesCount: true, score: true } as const;
+  const [weekItems, collab, joined] = await Promise.all([
+    weekIds.length
+      ? prisma.startup.findMany({ where: { id: { in: weekIds }, status: "APPROVED" }, select: mini })
+      : Promise.resolve([]),
+    prisma.startup.findMany({
+      where: { status: "APPROVED", openToCollab: true },
+      orderBy: [{ score: "desc" }],
+      take: 5,
+      select: { ...mini, collabNote: true },
+    }),
+    prisma.startupMember.findMany({
+      where: { user: { githubLogin: { not: null } } },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+      distinct: ["startupId"],
+      select: {
+        createdAt: true,
+        user: { select: { githubLogin: true, avatarUrl: true, firstName: true } },
+        startup: { select: mini },
+      },
+    }),
+  ]);
+  let top = weekIds.map((id) => weekItems.find((s) => s.id === id)).filter((s): s is NonNullable<typeof s> => Boolean(s));
+  const byWeek = top.length > 0;
+  if (top.length < 5) {
+    const more = await prisma.startup.findMany({
+      where: { status: "APPROVED", id: { notIn: top.map((s) => s.id) } },
+      orderBy: [{ votesCount: "desc" }, { score: "desc" }],
+      take: 5 - top.length,
+      select: mini,
+    });
+    top = [...top, ...more];
+  }
+  return { top: top.map((s) => ({ ...s, week: week.get(s.id) ?? 0 })), byWeek, collab, joined };
+}

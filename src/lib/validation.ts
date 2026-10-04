@@ -83,6 +83,11 @@ export const startupSchema = z
     implDays: optionalInt(3650),
     fundingNeed: optionalInt(100_000_000_000),
     fundingNeedDesc: optionalText(3000),
+    walletAddress: z
+      .string()
+      .trim()
+      .transform((v) => (v === "" ? null : v))
+      .pipe(z.string().regex(/^0x[0-9a-fA-F]{40}$/, "wallet").nullable()),
     // API и коллабы
     apiStatus: z.enum(API_STATUSES),
     apiTypes: z.array(z.enum(API_TYPES)).max(API_TYPES.length),
@@ -147,6 +152,7 @@ export function parseStartupForm(formData: FormData) {
     implDays: str(formData, "implDays"),
     fundingNeed: str(formData, "fundingNeed"),
     fundingNeedDesc: str(formData, "fundingNeedDesc"),
+    walletAddress: str(formData, "walletAddress"),
     apiStatus: str(formData, "apiStatus", "NONE") || "NONE",
     apiTypes: formData.getAll("apiTypes").map(String),
     apiDocsUrl: str(formData, "apiDocsUrl"),

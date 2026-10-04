@@ -21,6 +21,8 @@ import { Markdown } from "@/components/Markdown";
 import { ProgressBar } from "@/components/ProgressBar";
 import { Avatar } from "@/components/Avatar";
 import { VoteButton } from "@/components/VoteButton";
+import { CryptoSponsor } from "@/components/CryptoSponsor";
+import { chainById, formatUsdt, shortAddress } from "@/lib/crypto";
 import { ScoreBreakdown } from "@/components/ScoreBreakdown";
 import { Roadmap, parseRoadmap } from "@/components/Roadmap";
 import { RepoDetails, Stat } from "@/components/RepoDetails";
@@ -58,6 +60,19 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
+async function cryptoStats(startupId: string) {
+  const [agg, recent] = await Promise.all([
+    prisma.cryptoDonation.aggregate({ where: { startupId, status: "CONFIRMED" }, _sum: { amountCents: true }, _count: true }),
+    prisma.cryptoDonation.findMany({
+      where: { startupId, status: "CONFIRMED" },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+      select: { id: true, chainId: true, txHash: true, fromAddress: true, amountCents: true, message: true, user: { select: { githubLogin: true } } },
+    }),
+  ]);
+  return { totalCents: agg._sum.amountCents ?? 0, count: agg._count, recent };
+}
+
 function hexToRgb(hex: string | null): string | null {
   const m = hex ? /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex) : null;
   return m ? `${parseInt(m[1]!, 16)} ${parseInt(m[2]!, 16)} ${parseInt(m[3]!, 16)}` : null;
@@ -81,7 +96,7 @@ export default async function StartupPage({ params, searchParams }: Props) {
   const meta = parseRepoMeta(startup.repoMeta);
   const repo = parseGithubUrl(startup.githubUrl);
   const roadmap = parseRoadmap(startup.roadmap);
-  const [funding, repoInfo, commits, voted, week, pendingClaim, myStartups] = await Promise.all([
+  const [funding, repoInfo, commits, voted, week, pendingClaim, myStartups, crypto] = await Promise.all([
     getFundingStats(startup.id),
     repo ? fetchRepoInfo(repo) : Promise.resolve(null),
     repo && !meta?.commits?.length ? fetchRecentCommits(repo, 5) : Promise.resolve([]),
@@ -101,6 +116,7 @@ export default async function StartupPage({ params, searchParams }: Props) {
           select: { id: true, name: true },
         })
       : Promise.resolve([]),
+    cryptoStats(startup.id),
   ]);
 
   const stars = repoInfo?.stars ?? startup.githubStars;
@@ -358,6 +374,42 @@ export default async function StartupPage({ params, searchParams }: Props) {
             ))}
           </ul>
         )}
+        {crypto.recent.length > 0 && (
+          <div className="mt-6 border-t border-border/60 pt-5">
+            <h3 className="mb-3 flex items-baseline gap-2 text-sm font-bold">
+              {d.crypto.sponsorsTitle}
+              <span className="font-normal text-muted">
+                {formatUsdt(crypto.totalCents)} · {crypto.count} {d.crypto.donors}
+              </span>
+            </h3>
+            <ul className="divide-y divide-border/50">
+              {crypto.recent.map((c) => {
+                const ch = chainById(c.chainId);
+                return (
+                  <li key={c.id} className="flex items-center gap-3 py-2 text-sm">
+                    <span className="min-w-0 flex-1">
+                      <span className="font-semibold">
+                        {c.user?.githubLogin ? `@${c.user.githubLogin}` : `${d.crypto.anon} ${shortAddress(c.fromAddress ?? "")}`}
+                      </span>
+                      {c.message && <span className="ml-2 text-muted">«{c.message}»</span>}
+                    </span>
+                    <span className="shrink-0 font-bold tabular-nums">{formatUsdt(c.amountCents)}</span>
+                    {ch && (
+                      <a
+                        href={`${ch.explorer}/tx/${c.txHash}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="shrink-0 rounded-md bg-surface-2 px-1.5 py-0.5 text-[11px] text-muted hover:text-fg"
+                      >
+                        {ch.short} ↗
+                      </a>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
       </section>
     </div>
   );
@@ -401,6 +453,39 @@ export default async function StartupPage({ params, searchParams }: Props) {
           </div>
         )}
       </div>
+
+      {startup.walletAddress && startup.status === "APPROVED" ? (
+        <div className="card p-5 sm:p-6" id="usdt">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="p-head text-base font-bold">{d.crypto.title}</h2>
+              <p className="mt-0.5 text-xs text-muted">{d.crypto.subtitle}</p>
+            </div>
+            {crypto.totalCents > 0 && (
+              <div className="shrink-0 text-right">
+                <div className="text-[11px] uppercase tracking-wide text-muted">{d.crypto.total}</div>
+                <div className="text-lg font-extrabold tabular-nums">{formatUsdt(crypto.totalCents)}</div>
+              </div>
+            )}
+          </div>
+          <details className="group mt-4">
+            <summary className="btn-secondary w-full cursor-pointer list-none py-2.5 [&::-webkit-details-marker]:hidden">
+              <span className="group-open:hidden">{d.crypto.title}</span>
+              <span className="hidden text-sm text-muted group-open:inline">{d.common.close}</span>
+            </summary>
+            <div className="mt-4">
+              <CryptoSponsor startupId={startup.id} wallet={startup.walletAddress} />
+            </div>
+          </details>
+        </div>
+      ) : canManage ? (
+        <div className="card border-dashed p-5 text-sm sm:p-6">
+          <p className="text-muted">{d.crypto.noWalletTeam}</p>
+          <Link href={`/startup/${startup.slug}/edit`} className="mt-3 inline-block font-semibold text-accent hover:underline">
+            {d.crypto.addWallet} →
+          </Link>
+        </div>
+      ) : null}
 
       <div className="card p-5 sm:p-6">
         <ScoreBreakdown

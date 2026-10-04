@@ -12,14 +12,14 @@ datasource db {
 }
 
 model User {
-  id          String     @id @default(cuid())
-  telegramId  BigInt?    @unique // вход через Telegram (необязателен при входе через GitHub)
-  githubId    Int?       @unique // вход через GitHub
+  id          String  @id @default(cuid())
+  telegramId  BigInt? @unique // вход через Telegram (необязателен при входе через GitHub)
+  githubId    Int?    @unique // вход через GitHub
   githubLogin String?
   username    String?
   firstName   String?
   avatarUrl   String?
-  role        Role       @default(FOUNDER)
+  role        Role    @default(FOUNDER)
 
   // Профиль разработчика
   bio          String?  @db.VarChar(300)
@@ -29,14 +29,15 @@ model User {
   score        Int      @default(0) // рейтинг разработчика 0–100
   scoreData    Json?
 
-  startups    Startup[]
-  preOrders   PreOrder[]
-  memberships StartupMember[]
-  claims      ClaimRequest[]
-  votes       Vote[]
-  collabsSent     CollabRequest[] @relation("CollabFrom")
-  collabsReceived CollabRequest[] @relation("CollabToUser")
-  createdAt   DateTime   @default(now())
+  startups        Startup[]
+  preOrders       PreOrder[]
+  memberships     StartupMember[]
+  claims          ClaimRequest[]
+  votes           Vote[]
+  collabsSent     CollabRequest[]  @relation("CollabFrom")
+  collabsReceived CollabRequest[]  @relation("CollabToUser")
+  createdAt       DateTime         @default(now())
+  cryptoDonations CryptoDonation[]
 }
 
 model Startup {
@@ -67,12 +68,12 @@ model Startup {
   readme   String? @db.Text
   repoMeta Json?
 
-  status    Status          @default(PENDING)
-  preOrders PreOrder[]
-  tags      Tag[]
-  members   StartupMember[]
-  claims    ClaimRequest[]
-  votes     Vote[]
+  status      Status          @default(PENDING)
+  preOrders   PreOrder[]
+  tags        Tag[]
+  members     StartupMember[]
+  claims      ClaimRequest[]
+  votes       Vote[]
   collabsFrom CollabRequest[] @relation("CollabFromStartup")
   collabsTo   CollabRequest[] @relation("CollabToStartup")
 
@@ -104,6 +105,10 @@ model Startup {
   pageAccent String?
   pageFont   String  @default("sans")
   pageLayout String  @default("classic")
+
+  // Кошелёк команды (EVM) для спонсорства в USDT через MetaMask
+  walletAddress   String?
+  cryptoDonations CryptoDonation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -259,4 +264,31 @@ model PageView {
 
   @@index([createdAt])
   @@index([path])
+}
+
+enum CryptoStatus {
+  PENDING
+  CONFIRMED
+  FAILED
+}
+
+/// Спонсорство в USDT напрямую на кошелёк команды (некастодиально: AYMA средства не хранит)
+model CryptoDonation {
+  id          String       @id @default(cuid())
+  startupId   String
+  startup     Startup      @relation(fields: [startupId], references: [id], onDelete: Cascade)
+  userId      String?
+  user        User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  chainId     Int
+  txHash      String       @unique
+  fromAddress String?
+  toAddress   String
+  amountRaw   String?
+  amountCents Int          @default(0) // сумма в центах USDT
+  message     String?
+  status      CryptoStatus @default(PENDING)
+  createdAt   DateTime     @default(now())
+  confirmedAt DateTime?
+
+  @@index([startupId, status])
 }
